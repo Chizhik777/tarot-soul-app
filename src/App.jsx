@@ -22,30 +22,23 @@ import {
   Venus,
   Mars,
   MessageSquareDot,
-  RefreshCw,
   Archive,
   Copy,
   Check,
-  CreditCard,
   Bug,
   Mail
 } from 'lucide-react';
 
 /**
- * TAROT SOUL APP v27.1 (Dynamic Script Fix)
- * - Полный сброс всех состояний при Logout (идеально для тестов).
- * - Починена кнопка "Открыть чат" в модальном окне (исправлены z-index).
- * - Отреставрирован стикер "Магия" (моргание + стабильное вращение).
- * - Железобетонная функция отправки сообщений и фото.
- * - ИСПРАВЛЕНИЕ: Удален конфликтующий ESM-импорт, добавлена безопасная динамическая загрузка.
+ * TAROT SOUL APP v28.0 (The Mastery Edition)
+ * - ЧАТ И ФОТО: Встроен компрессор изображений для обхода лимитов БД. Текст отправляется мгновенно.
+ * - LOGOUT: Абсолютный сброс всех состояний при выходе для идеального тестирования.
+ * - СТИКЕРЫ: Восстановлено вращение сферы и моргание глаз у стикера "Магия".
+ * - ИНТЕРФЕЙС: Исправлен клик по кнопке "Открыть чат" в модальном окне.
  */
 
 const SUPABASE_URL = "https://hvqdnasfjtbipuuvblbw.supabase.co"; 
 const SUPABASE_ANON_KEY = "sb_publishable_s080zBFK5LwnBIavU_44yw_QElRnhCk"; 
-
-// Инициализация базы данных (динамически)
-let supabase = null;
-
 const MASTER_SECRET_CODE = "2026";
 
 // --- ГЛОБАЛЬНЫЕ ХЕЛПЕРЫ ---
@@ -194,30 +187,36 @@ const StickerZen = () => (<motion.div animate={{ y: [-4, 4, -4] }} transition={{
 // --- ИСПРАВЛЕННЫЙ СТИКЕР "МАГИЯ" ---
 const StickerMagic = () => (
   <motion.div animate={{ y: [-2, 2, -2] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }} className="w-20 h-20 relative flex items-center justify-center">
+    <style dangerouslySetInnerHTML={{ __html: `
+      @keyframes magicBlink { 0%, 45%, 55%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.1); } }
+      @keyframes magicSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      .magic-eye-l { animation: magicBlink 4s infinite; transform-origin: 40px 52px; }
+      .magic-eye-r { animation: magicBlink 4s infinite; transform-origin: 60px 52px; }
+      .magic-sphere { animation: magicSpin 4s linear infinite; transform-origin: 50px 80px; }
+    `}} />
     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_10px_rgba(147,112,219,0.5)]">
       <motion.path d="M68,65 C80,60 90,70 85,50 C80,30 95,30 90,20" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" animate={{ rotate: [-2, 2, -2] }} transition={{ repeat: Infinity, duration: 3 }} style={{ transformOrigin: "68px 65px" }} />
       <path d="M28,40 Q40,0 52,40 Z" fill="#D4AF37" />
       <path d="M72,40 Q60,0 48,40 Z" fill="#D4AF37" />
       <circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" />
       
-      {/* Моргающие глазки */}
-      <motion.g animate={{ scaleY: [1, 1, 0.1, 1, 1] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.45, 0.5, 0.55, 1] }} style={{ transformOrigin: "40px 52px" }}>
+      {/* ИСПРАВЛЕНИЕ: Моргающие глазки с помощью надежного CSS */}
+      <g className="magic-eye-l">
         <ellipse cx="40" cy="52" rx="5" ry="5" fill="#D4AF37" />
         <circle cx="39" cy="50" r="1.5" fill="#fff" opacity="0.8" />
-      </motion.g>
-      <motion.g animate={{ scaleY: [1, 1, 0.1, 1, 1] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.45, 0.5, 0.55, 1] }} style={{ transformOrigin: "60px 52px" }}>
+      </g>
+      <g className="magic-eye-r">
         <ellipse cx="60" cy="52" rx="5" ry="5" fill="#D4AF37" />
         <circle cx="59" cy="50" r="1.5" fill="#fff" opacity="0.8" />
-      </motion.g>
+      </g>
       
       <CatMuzzleS />
       
       <motion.circle cx="50" cy="80" r="10" fill="#9370DB" animate={{ scale: [1, 1.2, 1], opacity: [0.6, 1, 0.6] }} transition={{ repeat: Infinity, duration: 1.5 }} />
       <circle cx="50" cy="80" r="6" fill="#E6E6FA" opacity="0.9" />
       
-      {/* Вращающиеся блики в сфере */}
-      <g>
-        <animateTransform attributeName="transform" type="rotate" from="0 50 80" to="360 50 80" dur="4s" repeatCount="indefinite" />
+      {/* ИСПРАВЛЕНИЕ: Сфера безупречно крутится */}
+      <g className="magic-sphere">
         <path d="M50,64 L51,68 L55,69 L51,70 L50,74 L49,70 L45,69 L49,68 Z" fill="#fff" />
         <path d="M50,86 L51,90 L55,91 L51,92 L50,96 L49,92 L45,91 L49,90 Z" fill="#fff" />
       </g>
@@ -238,6 +237,7 @@ const STICKERS_LIST = [ { id: 'love', label: 'Любовь' }, { id: 'joy', labe
 
 // --- ОСНОВНОЙ КОМПОНЕНТ ---
 export default function App() {
+  const [supabase, setSupabase] = useState(null);
   const [isReady, setIsReady] = useState(false);
   const [user, setUser] = useState(null); 
   const [view, setView] = useState('loading'); 
@@ -273,16 +273,12 @@ export default function App() {
   const lastPendingCountRef = useRef(null);
   const chatEndRef = useRef(null);
   const audioCtxRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const prevActiveBookingRef = useRef(null);
 
   // --- 1. БЕЗОПАСНАЯ ИНИЦИАЛИЗАЦИЯ SUPABASE ---
   useEffect(() => {
     const initSupabase = () => {
       if (window.supabase) {
-        if (!supabase) {
-          supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        }
+        setSupabase(window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY));
         setIsReady(true);
       }
     };
@@ -391,7 +387,7 @@ export default function App() {
     fetchBookings();
     const channel = supabase.channel('bookings_changes').on('postgres_changes', { event: '*', table: 'bookings' }, () => { fetchBookings(); }).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [user?.role, user?.phone, isReady]);
+  }, [user?.role, user?.phone, isReady, supabase]);
 
   const processBookings = (sorted) => {
     setAllBookings(sorted);
@@ -406,21 +402,20 @@ export default function App() {
     
     if (user.role === 'client') {
       const active = sorted.find(b => b.client_phone === user.phone && b.status !== 'completed');
-      const prev = prevActiveBookingRef.current;
       
-      if (prev && !active) { 
+      // ИСПРАВЛЕНИЕ: Вызываем анимацию, если сеанс был активен, а теперь его нет
+      if (activeChatBooking && !active && activeChatBooking.status !== 'completed') { 
         setSessionEndingOverlay(true); 
         setClientHasNotification(false); 
         playSound('notification'); 
       }
       else if (active) {
-        if (active.status === 'confirmed' && (!prev || prev.status === 'pending')) { 
+        if (active.status === 'confirmed' && (!activeChatBooking || activeChatBooking.status === 'pending')) { 
           triggerMagicAlert(`Запись подтверждена! ✨`); 
           setClientHasNotification(true); 
         }
         setActiveChatBooking(active);
       }
-      prevActiveBookingRef.current = active;
     }
   };
 
@@ -463,7 +458,7 @@ export default function App() {
     }).subscribe();
     
     return () => { supabase.removeChannel(channel); };
-  }, [activeChatBooking?.id, user?.role, isReady]);
+  }, [activeChatBooking?.id, user?.role, isReady, supabase]);
 
   // --- АРХИВНЫЕ СООБЩЕНИЯ ---
   useEffect(() => {
@@ -481,14 +476,19 @@ export default function App() {
       } catch (err) {}
     };
     fetchArchive();
-  }, [selectedArchiveBooking?.id, view, isReady]);
+  }, [selectedArchiveBooking?.id, view, isReady, supabase]);
 
-  // --- МЕТОДЫ АВТОРИЗАЦИИ И СБРОС ---
+  // --- ИСПРАВЛЕНИЕ: ПОЛНЫЙ СБРОС ДАННЫХ ПРИ ВЫХОДЕ ---
   const handleLogout = async () => { 
     handleInteraction(); 
-    try { localStorage.clear(); } catch(e){}
+    try { 
+      localStorage.clear(); 
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+    } catch(e) {}
     
-    // Абсолютный сброс всех переменных при выходе!
+    // Абсолютный сброс всех переменных для чистых тестов!
     setUser(null); 
     setPhone('');
     setClientPin('');
@@ -505,8 +505,8 @@ export default function App() {
     setSessionEndingOverlay(false);
     setShowClientInfo(false);
     setShowDonateModal(false);
+    setShowStickerPicker(false);
     
-    prevActiveBookingRef.current = null;
     lastPendingCountRef.current = null;
 
     setView('login-choice'); 
@@ -687,7 +687,7 @@ export default function App() {
     } catch (err) {}
   };
 
-  // Железобетонная отправка фото и текста
+  // ИСПРАВЛЕНИЕ: Железобетонная отправка текста и тяжелых фото
   const sendMessage = async (textStr = '', imageUrl = null, stickerId = null) => {
     const text = typeof textStr === 'string' ? textStr : '';
     
@@ -696,7 +696,10 @@ export default function App() {
       triggerMagicAlert("Чат не активен");
       return;
     }
-    if (!isReady || !supabase) return;
+    if (!isReady || !supabase) {
+      triggerMagicAlert("База загружается...");
+      return;
+    }
     
     handleInteraction();
     const isFromMaster = user.role === 'admin';
@@ -706,14 +709,14 @@ export default function App() {
       image_url: imageUrl, 
       sticker_id: stickerId, 
       sender: isFromMaster ? 'master' : 'user', 
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      time: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
       timestamp: Date.now() 
     };
     
     try {
       const { error } = await supabase.from('messages').insert(msg);
       if (error) {
-        console.error("Chat error:", error);
+        console.error("Chat insert error:", error);
         triggerMagicAlert(`Сбой отправки: ${error.message}`);
         return;
       }
@@ -742,13 +745,38 @@ export default function App() {
   const handleCopyDonate = () => { handleInteraction(); const textArea = document.createElement("textarea"); textArea.value = "5599002127322628"; document.body.appendChild(textArea); textArea.select(); try { document.execCommand('copy'); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (err) {} document.body.removeChild(textArea); };
   const handleSupportEmail = () => { handleInteraction(); window.open('mailto:cool.pauk2302@gmail.com', '_blank'); const textArea = document.createElement("textarea"); textArea.value = "cool.pauk2302@gmail.com"; document.body.appendChild(textArea); textArea.select(); try { document.execCommand('copy'); triggerMagicAlert('Email скопирован ✉️'); } catch (err) {} document.body.removeChild(textArea); };
   
+  // ИСПРАВЛЕНИЕ: Автоматический компрессор фото (Сжимает большие фото, чтобы БД не падала)
   const handleFileUpload = (e) => { 
     const file = e.target.files[0]; 
-    if (file) { 
-      const reader = new FileReader(); 
-      reader.onload = (ev) => sendMessage('', ev.target.result, null); 
-      reader.readAsDataURL(file); 
-    } 
+    if (!file) return;
+
+    const reader = new FileReader(); 
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+        } else {
+          if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7); // 70% качество
+        sendMessage('', compressedBase64, null);
+      };
+      img.src = ev.target.result;
+    }; 
+    reader.readAsDataURL(file); 
+    e.target.value = ''; // Сброс инпута
   };
 
   // --- РЕНДЕР ИНТЕРФЕЙСА ---
