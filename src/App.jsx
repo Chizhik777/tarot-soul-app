@@ -177,7 +177,7 @@ export default function App() {
   const [user, setUser] = useState(null); 
   const [view, setView] = useState('loading'); 
   const [phone, setPhone] = useState('');
-  const [clientOtp, setClientOtp] = useState('');
+  const [clientPin, setClientPin] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientGender, setClientGender] = useState('female'); 
   const [masterPass, setMasterPass] = useState('');
@@ -407,7 +407,7 @@ export default function App() {
     } else triggerMagicAlert("Доступ закрыт 🔒");
   };
 
-  // 1. ИМИТАЦИЯ ОТПРАВКИ СМС (ГЕНЕРАЦИЯ КОДА)
+  // 1. ПРОВЕРКА НОМЕРА И СЕССИИ
   const handleVerifyPhone = async () => {
     handleInteraction();
     if (!phone.trim()) {
@@ -425,58 +425,77 @@ export default function App() {
     setPhone(formattedPhone);
     setView('loading');
 
-    // СИМУЛЯЦИЯ РЕАЛЬНОГО СМС
-    setTimeout(() => {
-      const mockOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      window.magicOtp = mockOtp; 
-      
-      triggerMagicAlert(`✨ Вам пришло СМС: Ваш код ${mockOtp}`);
-      setView('login-client-otp');
-    }, 1500);
+    // Обеспечиваем анонимную сессию для безопасных запросов к БД
+    if (supabase) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) {
+        await supabase.auth.signInAnonymously();
+      }
+    }
+
+    const safePhone = formattedPhone.replace(/[^0-9+]/g, '');
+    const { data, error } = await supabase.from('profiles').select('*').eq('phone', safePhone).single();
+    
+    if (data && !error) {
+      // Профиль найден -> запрашиваем ПИН-код
+      setView('login-client-pin');
+    } else {
+      // Профиль не найден -> регистрация нового
+      setView('login-client-details');
+    }
   };
 
-  // 2. ПРОВЕРКА КОДА И ВХОД
-  const handleVerifyOtp = async () => {
+  // 2. ПРОВЕРКА ПИН-КОДА И ВХОД
+  const handleVerifyPin = async () => {
     handleInteraction();
-    if (!clientOtp.trim()) return;
-    
-    setView('loading');
-
-    if (clientOtp !== window.magicOtp && clientOtp !== '000000') {
-      triggerMagicAlert(`Неверный код. Попробуйте еще раз.`);
-      setView('login-client-otp');
+    if (!clientPin.trim()) {
+      triggerMagicAlert("Введите ПИН-код");
       return;
     }
+    
+    setView('loading');
 
     const safePhone = phone.replace(/[^0-9+]/g, '');
     const { data, error } = await supabase.from('profiles').select('*').eq('phone', safePhone).single();
     
     if (data && !error) {
-      localStorage.setItem('tarot_role', 'client');
-      localStorage.setItem('tarot_phone', safePhone);
-      localStorage.setItem('tarot_name', data.name);
-      localStorage.setItem('tarot_gender', data.gender);
-      setUser({ role: 'client', phone: safePhone, ...data });
-      setView('home');
+      if (data.pin === clientPin) {
+        localStorage.setItem('tarot_role', 'client');
+        localStorage.setItem('tarot_phone', safePhone);
+        localStorage.setItem('tarot_name', data.name);
+        localStorage.setItem('tarot_gender', data.gender);
+        setUser({ role: 'client', phone: safePhone, ...data });
+        setView('home');
+      } else {
+        triggerMagicAlert(`Неверный ПИН-код 🔒`);
+        setView('login-client-pin');
+      }
     } else {
-      setView('login-client-details');
+      triggerMagicAlert(`Профиль не найден`);
+      setView('login-phone');
     }
   };
 
-  // 3. СОЗДАНИЕ ПРОФИЛЯ
+  // 3. СОЗДАНИЕ ПРОФИЛЯ С ПИН-КОДОМ
   const handleCompleteRegistration = async () => {
     handleInteraction();
     if (!clientName.trim() || !supabase) {
        triggerMagicAlert("Введите имя ✨");
        return;
     }
+    if (!clientPin.trim() || clientPin.length < 4) {
+       triggerMagicAlert("Придумайте ПИН-код (минимум 4 цифры) 🔒");
+       return;
+    }
     
+    setView('loading');
     const safePhone = phone.replace(/[^0-9+]/g, '');
-    const profile = { phone: safePhone, name: clientName, gender: clientGender };
+    const profile = { phone: safePhone, name: clientName, gender: clientGender, pin: clientPin };
     
     const { error } = await supabase.from('profiles').upsert(profile);
     if (error) {
       triggerMagicAlert(`Ошибка регистрации: ${error.message}`);
+      setView('login-client-details');
       return;
     }
     
@@ -575,7 +594,7 @@ export default function App() {
                 <div className="mb-6 pt-10"><GoldenCatFamiliar /></div>
                 <div className="w-full space-y-6">
                   <h1 className="text-3xl font-extralight text-[#d4af37] tracking-[0.5em] uppercase font-serif">Tarot Soul</h1>
-                  {view === 'login-choice' ? (<><button onClick={() => setView('login-phone')} className="w-full bg-[#d4af37] text-black font-bold py-6 rounded-[30px] shadow-xl uppercase text-xs active:scale-95 italic tracking-widest">Я Клиент</button><button onClick={() => setView('login-master')} className="w-full bg-white/[0.03] text-white/30 py-5 rounded-[30px] border border-white/5 uppercase text-[9px] tracking-[0.3em]">Мастер-вход</button></>) : view === 'login-phone' ? (<div className="text-left space-y-6 px-4"><button onClick={() => setView('login-choice')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button><div className="bg-[#16161f] rounded-3xl p-6 border border-white/5 flex items-center shadow-2xl focus-within:border-[#d4af37]/30 transition-all text-white"><Phone size={18} className="text-[#d4af37] mr-4 opacity-40" /><input type="tel" placeholder="+7 999 000 00 00" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleVerifyPhone()} className="bg-transparent border-none outline-none w-full text-lg font-light text-white" /></div><button onClick={handleVerifyPhone} className="w-full bg-[#d4af37] text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95 shadow-lg">Далее</button></div>) : view === 'login-client-otp' ? (<div className="text-left space-y-6 px-4"><button onClick={() => setView('login-phone')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button><div className="bg-[#16161f] rounded-3xl p-6 border border-[#d4af37]/20 flex items-center shadow-2xl text-white"><ShieldCheck size={18} className="text-[#d4af37] mr-4 opacity-40" /><input type="text" placeholder="******" value={clientOtp} onChange={(e) => setClientOtp(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleVerifyOtp()} className="bg-transparent border-none outline-none w-full text-2xl font-light text-[#d4af37] tracking-[0.5em] text-center" /></div><button onClick={handleVerifyOtp} className="w-full bg-white text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95">Подтвердить</button></div>) : view === 'login-client-details' ? (<div className="text-center space-y-6 px-4"><h2 className="text-lg font-light uppercase tracking-widest text-[#d4af37]">Ваше Имя</h2><div className="bg-[#16161f] rounded-3xl p-6 border border-white/5 flex items-center shadow-2xl text-white"><input type="text" placeholder="Введите имя" value={clientName} onChange={(e) => setClientName(e.target.value)} className="bg-transparent border-none outline-none w-full text-lg font-light tracking-widest text-white text-center" /></div><div className="grid grid-cols-2 gap-3"><button onClick={() => setClientGender('female')} className={`p-5 rounded-3xl border flex flex-col items-center gap-2 transition-all ${clientGender === 'female' ? 'bg-[#d4af37]/10 border-[#d4af37] text-[#d4af37]' : 'bg-[#16161f] border-white/5 text-white/30'}`}><VenusIcon size={24} className={clientGender === 'female' ? 'text-[#d4af37]' : 'text-white/30'} /> <span className="text-[10px] uppercase tracking-widest">Женщина</span></button><button onClick={() => setClientGender('male')} className={`p-5 rounded-3xl border flex flex-col items-center gap-2 transition-all ${clientGender === 'male' ? 'bg-[#d4af37]/10 border-[#d4af37] text-[#d4af37]' : 'bg-[#16161f] border-white/5 text-white/30'}`}><MarsIcon size={24} className={clientGender === 'male' ? 'text-[#d4af37]' : 'text-white/30'} /> <span className="text-[10px] uppercase tracking-widest">Мужчина</span></button></div><button onClick={handleCompleteRegistration} className="w-full bg-[#d4af37] text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95 shadow-xl">Завершить</button></div>) : (<div className="text-center space-y-6 px-4"><button onClick={() => setView('login-choice')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button><div className="bg-[#16161f] rounded-3xl p-6 border border-[#d4af37]/20 shadow-2xl text-white"><h2 className="text-sm font-light uppercase tracking-widest text-white/60 mb-4 flex items-center justify-center gap-2"><KeyRound size={16}/> МАСТЕР-КЛЮЧ</h2><input type="password" placeholder="****" value={masterPass} onChange={(e) => setMasterPass(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleMasterLogin()} className="bg-transparent border-none outline-none w-full text-center text-4xl font-light tracking-[0.5em] text-[#d4af37]" /></div><button onClick={handleMasterLogin} className="w-full bg-white text-black font-bold py-5 rounded-[28px] active:scale-95 shadow-xl uppercase">Активировать</button></div>)}
+                  {view === 'login-choice' ? (<><button onClick={() => setView('login-phone')} className="w-full bg-[#d4af37] text-black font-bold py-6 rounded-[30px] shadow-xl uppercase text-xs active:scale-95 italic tracking-widest">Я Клиент</button><button onClick={() => setView('login-master')} className="w-full bg-white/[0.03] text-white/30 py-5 rounded-[30px] border border-white/5 uppercase text-[9px] tracking-[0.3em]">Мастер-вход</button></>) : view === 'login-phone' ? (<div className="text-left space-y-6 px-4"><button onClick={() => setView('login-choice')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button><div className="bg-[#16161f] rounded-3xl p-6 border border-white/5 flex items-center shadow-2xl focus-within:border-[#d4af37]/30 transition-all text-white"><Phone size={18} className="text-[#d4af37] mr-4 opacity-40" /><input type="tel" placeholder="+7 999 000 00 00" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleVerifyPhone()} className="bg-transparent border-none outline-none w-full text-lg font-light text-white" /></div><button onClick={handleVerifyPhone} className="w-full bg-[#d4af37] text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95 shadow-lg">Далее</button></div>) : view === 'login-client-pin' ? (<div className="text-left space-y-6 px-4"><button onClick={() => setView('login-phone')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button><div className="bg-[#16161f] rounded-3xl p-6 border border-[#d4af37]/20 flex items-center shadow-2xl text-white"><KeyRound size={18} className="text-[#d4af37] mr-4 opacity-40" /><input type="password" placeholder="ПИН-КОД" value={clientPin} onChange={(e) => setClientPin(e.target.value.replace(/\D/g, '').slice(0, 4))} onKeyPress={(e) => e.key === 'Enter' && handleVerifyPin()} className="bg-transparent border-none outline-none w-full text-2xl font-light text-[#d4af37] tracking-[0.5em] text-center" /></div><button onClick={handleVerifyPin} className="w-full bg-white text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95">Войти</button></div>) : view === 'login-client-details' ? (<div className="text-center space-y-6 px-4"><h2 className="text-lg font-light uppercase tracking-widest text-[#d4af37]">Создание профиля</h2><div className="bg-[#16161f] rounded-3xl p-6 border border-white/5 flex items-center shadow-2xl text-white"><input type="text" placeholder="Ваше Имя" value={clientName} onChange={(e) => setClientName(e.target.value)} className="bg-transparent border-none outline-none w-full text-lg font-light tracking-widest text-white text-center" /></div><div className="bg-[#16161f] rounded-3xl p-6 border border-[#d4af37]/20 flex items-center shadow-2xl text-white"><KeyRound size={18} className="text-[#d4af37] mr-4 opacity-40" /><input type="password" placeholder="ПРИДУМАЙТЕ ПИН (4 цифры)" value={clientPin} onChange={(e) => setClientPin(e.target.value.replace(/\D/g, '').slice(0, 4))} className="bg-transparent border-none outline-none w-full text-sm font-light text-[#d4af37] tracking-[0.2em] text-center" /></div><div className="grid grid-cols-2 gap-3"><button onClick={() => setClientGender('female')} className={`p-5 rounded-3xl border flex flex-col items-center gap-2 transition-all ${clientGender === 'female' ? 'bg-[#d4af37]/10 border-[#d4af37] text-[#d4af37]' : 'bg-[#16161f] border-white/5 text-white/30'}`}><VenusIcon size={24} className={clientGender === 'female' ? 'text-[#d4af37]' : 'text-white/30'} /> <span className="text-[10px] uppercase tracking-widest">Женщина</span></button><button onClick={() => setClientGender('male')} className={`p-5 rounded-3xl border flex flex-col items-center gap-2 transition-all ${clientGender === 'male' ? 'bg-[#d4af37]/10 border-[#d4af37] text-[#d4af37]' : 'bg-[#16161f] border-white/5 text-white/30'}`}><MarsIcon size={24} className={clientGender === 'male' ? 'text-[#d4af37]' : 'text-white/30'} /> <span className="text-[10px] uppercase tracking-widest">Мужчина</span></button></div><button onClick={handleCompleteRegistration} className="w-full bg-[#d4af37] text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95 shadow-xl">Завершить</button></div>) : (<div className="text-center space-y-6 px-4"><button onClick={() => setView('login-choice')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button><div className="bg-[#16161f] rounded-3xl p-6 border border-[#d4af37]/20 shadow-2xl text-white"><h2 className="text-sm font-light uppercase tracking-widest text-white/60 mb-4 flex items-center justify-center gap-2"><KeyRound size={16}/> МАСТЕР-КЛЮЧ</h2><input type="password" placeholder="****" value={masterPass} onChange={(e) => setMasterPass(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleMasterLogin()} className="bg-transparent border-none outline-none w-full text-center text-4xl font-light tracking-[0.5em] text-[#d4af37]" /></div><button onClick={handleMasterLogin} className="w-full bg-white text-black font-bold py-5 rounded-[28px] active:scale-95 shadow-xl uppercase">Активировать</button></div>)}
                 </div>
                 <div className="w-full flex justify-center pb-4 mt-12"><button onClick={() => setShowSupportModal(true)} className="text-[9px] text-white/30 hover:text-white/60 uppercase tracking-widest font-mono flex items-center gap-1.5 transition-colors"><Bug size={10} /> Сообщить о проблеме</button></div>
               </motion.div>
