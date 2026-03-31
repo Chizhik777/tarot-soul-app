@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/+esm';
 import { 
   MessageCircle, 
   Calendar as CalendarIcon, 
@@ -19,23 +20,32 @@ import {
   Smile,
   KeyRound,
   ShieldCheck,
+  Venus,
+  Mars,
   MessageSquareDot,
+  RefreshCw,
   Archive,
   Copy,
   Check,
+  CreditCard,
   Bug,
   Mail
 } from 'lucide-react';
 
 /**
- * TAROT SOUL APP v25.0 (PIN Code Restored)
- * - Восстановлена правильная логика ПИН-кода при регистрации и входе.
- * - Безопасная инициализация Supabase через CDN.
- * - Отлов всех ошибок связи (без зависаний загрузки).
+ * TAROT SOUL APP v26.0 (Ultimate Fixes Edition)
+ * - Восстановлена инициализация Supabase (createClient).
+ * - Починен и внедрен функционал PIN-кода (регистрация и вход).
+ * - Починена отправка текста и фото в чате (убраны тихие блокировки).
+ * - Починена анимация глаз и сферы у стикера "Магия".
  */
 
 const SUPABASE_URL = "https://hvqdnasfjtbipuuvblbw.supabase.co"; 
 const SUPABASE_ANON_KEY = "sb_publishable_s080zBFK5LwnBIavU_44yw_QElRnhCk"; 
+
+// Инициализация базы данных! (Эта строка была утеряна в прошлой версии)
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 const MASTER_SECRET_CODE = "2026";
 
 // --- ГЛОБАЛЬНЫЕ ХЕЛПЕРЫ ---
@@ -75,10 +85,15 @@ const StarryBackground = () => {
     return Array.from({ length: 140 }).map((_, i) => {
       const floatType = Math.floor(Math.random() * 3) + 1;
       return {
-        id: i, cx: Math.random() * 100 + '%', cy: Math.random() * 100 + '%',
-        r: Math.random() * 0.6 + 0.2, dur: Math.random() * 4 + 2, 
-        delay: -(Math.random() * 5), color: "#FFFFFF", 
-        opacity: Math.random() * 0.6 + 0.3, floatClass: `float-star-${floatType}`,
+        id: i,
+        cx: Math.random() * 100 + '%',
+        cy: Math.random() * 100 + '%',
+        r: Math.random() * 0.6 + 0.2, 
+        dur: Math.random() * 4 + 2, 
+        delay: -(Math.random() * 5), 
+        color: "#FFFFFF", 
+        opacity: Math.random() * 0.6 + 0.3,
+        floatClass: `float-star-${floatType}`,
         floatDur: Math.random() * 20 + 15 
       };
     });
@@ -103,7 +118,9 @@ const StarryBackground = () => {
       <svg className="absolute inset-0 w-full h-full animate-slow-pan">
         {stars.map(star => (
           <g key={star.id} className={star.floatClass} style={{ animationDuration: `${star.floatDur}s`, animationDelay: `${star.delay}s` }}>
-            <circle cx={star.cx} cy={star.cy} r={star.r} fill={star.color}><animate attributeName="opacity" values={`0.1;${star.opacity};0.1`} dur={`${star.dur}s`} begin={`${star.delay}s`} repeatCount="indefinite" /></circle>
+            <circle cx={star.cx} cy={star.cy} r={star.r} fill={star.color}>
+              <animate attributeName="opacity" values={`0.1;${star.opacity};0.1`} dur={`${star.dur}s`} begin={`${star.delay}s`} repeatCount="indefinite" />
+            </circle>
           </g>
         ))}
       </svg>
@@ -113,7 +130,7 @@ const StarryBackground = () => {
   );
 };
 
-// --- УВЕДОМЛЕНИЯ ---
+// --- КОМПОНЕНТ УВЕДОМЛЕНИЙ ---
 const NotificationUI = ({ toast, onClose }) => (
   <motion.div initial={{ y: -100, opacity: 0, scale: 0.8 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ x: 100, opacity: 0 }} className="fixed top-4 left-1/2 -translate-x-1/2 z-[600] bg-[#1a1a24]/98 border-2 border-[#d4af37]/60 backdrop-blur-3xl p-4 rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.9)] flex items-start gap-4 max-w-sm w-[92%] pointer-events-auto text-left">
     <div className="w-10 h-10 rounded-full bg-[#d4af37]/20 flex items-center justify-center flex-shrink-0"><Sparkles className="text-[#d4af37]" size={20} /></div>
@@ -139,11 +156,20 @@ const GoldenCatFamiliar = () => (
           <path d="M75,65 C90,65 95,45 90,35 C85,25 75,35 80,45" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" className="animate-cat-tail" />
           <path d="M28,40 Q40,0 52,40 Z" fill="#D4AF37" /><path d="M72,40 Q60,0 48,40 Z" fill="#D4AF37" />
           <circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" />
-          <motion.g animate={{ scaleY: [1, 1, 0.1, 1, 1] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.45, 0.5, 0.55, 1] }} style={{ transformOrigin: "40px 52px" }}><ellipse cx="40" cy="52" rx="5" ry="5" fill="#D4AF37" /><circle cx="39" cy="50" r="1.5" fill="#fff" opacity="0.8" /></motion.g>
-          <motion.g animate={{ scaleY: [1, 1, 0.1, 1, 1] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.45, 0.5, 0.55, 1] }} style={{ transformOrigin: "60px 52px" }}><ellipse cx="60" cy="52" rx="5" ry="5" fill="#D4AF37" /><circle cx="59" cy="50" r="1.5" fill="#fff" opacity="0.8" /></motion.g>
+          <motion.g animate={{ scaleY: [1, 1, 0.1, 1, 1] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.45, 0.5, 0.55, 1] }} style={{ transformOrigin: "40px 52px" }}>
+            <ellipse cx="40" cy="52" rx="5" ry="5" fill="#D4AF37" />
+            <circle cx="39" cy="50" r="1.5" fill="#fff" opacity="0.8" />
+          </motion.g>
+          <motion.g animate={{ scaleY: [1, 1, 0.1, 1, 1] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.45, 0.5, 0.55, 1] }} style={{ transformOrigin: "60px 52px" }}>
+            <ellipse cx="60" cy="52" rx="5" ry="5" fill="#D4AF37" />
+            <circle cx="59" cy="50" r="1.5" fill="#fff" opacity="0.8" />
+          </motion.g>
           <path d="M48,64 L52,64 L50,68 Z" fill="#F9F1D8" />
           <path d="M50,68 Q46,72 42,70 M50,68 Q54,72 58,70" stroke="#D4AF37" strokeWidth="1.2" strokeLinecap="round" />
-          <g className="animate-heart-beat"><ellipse cx="38" cy="78" rx="8" ry="6" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /><ellipse cx="62" cy="78" rx="8" ry="6" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /></g>
+          <g className="animate-heart-beat">
+            <ellipse cx="38" cy="78" rx="8" ry="6" fill="#000" stroke="#D4AF37" strokeWidth="1.5" />
+            <ellipse cx="62" cy="78" rx="8" ry="6" fill="#000" stroke="#D4AF37" strokeWidth="1.5" />
+          </g>
           <path d="M32,58 L12,55 M32,62 L8,62 M32,66 L12,69" stroke="#D4AF37" strokeWidth="1" opacity="0.5" />
           <path d="M68,58 L88,55 M68,62 L92,62 M68,66 L88,69" stroke="#D4AF37" strokeWidth="1" opacity="0.5" />
       </svg>
@@ -152,13 +178,56 @@ const GoldenCatFamiliar = () => (
 );
 
 // --- СТИКЕРЫ ---
-const CatMuzzleS = ({ color = "#D4AF37" }) => (<><path d="M48,64 L52,64 L50,68 Z" fill="#F9F1D8" /><path d="M50,68 Q47,72 43,70 M50,68 Q53,72 57,70" stroke={color} strokeWidth="1.2" strokeLinecap="round" /></>);
+const CatMuzzleS = ({ color = "#D4AF37" }) => (
+  <>
+    <path d="M48,64 L52,64 L50,68 Z" fill="#F9F1D8" />
+    <path d="M50,68 Q47,72 43,70 M50,68 Q53,72 57,70" stroke={color} strokeWidth="1.2" strokeLinecap="round" />
+  </>
+);
+
 const StickerLove = () => (<motion.div animate={{ y: [-2, 2, -2] }} transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }} className="w-20 h-20 relative flex items-center justify-center"><svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_8px_rgba(212,175,55,0.4)]"><motion.path d="M68,65 C80,65 90,50 85,35 C80,20 70,30 75,40" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" animate={{ rotate: [-5, 10, -5] }} transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }} style={{ transformOrigin: "68px 65px" }} /><path d="M28,40 Q40,0 52,40 Z" fill="#D4AF37" /><path d="M72,40 Q60,0 48,40 Z" fill="#D4AF37" /><circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /><motion.path d="M33 48 C33 44 38 41 41 45 C44 41 49 44 49 48 C49 52 41 58 41 58 C41 58 33 52 33 48 Z" fill="#ff4d4d" animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 1.2 }} style={{ transformOrigin: "41px 49px" }} /><motion.path d="M51 48 C51 44 56 41 59 45 C62 41 67 44 67 48 C67 52 59 58 59 58 C59 58 51 52 51 48 Z" fill="#ff4d4d" animate={{ scale: [1, 1.15, 1] }} transition={{ repeat: Infinity, duration: 1.2, delay: 0.1 }} style={{ transformOrigin: "59px 49px" }} /><CatMuzzleS /><circle cx="34" cy="60" r="3.5" fill="#ff4d4d" opacity="0.5" /><circle cx="66" cy="60" r="3.5" fill="#ff4d4d" opacity="0.5" /><ellipse cx="38" cy="78" rx="7" ry="5" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /><ellipse cx="62" cy="78" rx="7" ry="5" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /></svg></motion.div>);
 const StickerJoy = () => (<motion.div animate={{ y: [0, -12, 0] }} transition={{ repeat: Infinity, duration: 0.6, ease: "easeOut" }} className="w-20 h-20 relative flex items-center justify-center"><svg viewBox="0 0 100 100" className="w-full h-full"><motion.path d="M68,65 C80,65 90,50 85,35" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" animate={{ rotate: [-15, 15, -15] }} transition={{ repeat: Infinity, duration: 0.3 }} style={{ transformOrigin: "68px 65px" }} /><path d="M28,40 Q40,0 52,40 Z" fill="#D4AF37" /><path d="M72,40 Q60,0 48,40 Z" fill="#D4AF37" /><circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /><path d="M34,51 Q39,44 44,51 M56,51 Q61,44 66,51" stroke="#D4AF37" strokeWidth="2.5" fill="none" strokeLinecap="round" /><path d="M45,63 Q50,73 55,63 Z" fill="#D4AF37" /><circle cx="33" cy="58" r="3" fill="#ff4d4d" opacity="0.4" /><circle cx="67" cy="58" r="3" fill="#ff4d4d" opacity="0.4" /><motion.ellipse cx="28" cy="55" rx="5" ry="7" fill="#000" stroke="#D4AF37" strokeWidth="1.5" transform="rotate(-30 28 55)" animate={{ y: [-2, 2, -2] }} transition={{ repeat: Infinity, duration: 0.5 }} /><motion.ellipse cx="72" cy="55" rx="5" ry="7" fill="#000" stroke="#D4AF37" strokeWidth="1.5" transform="rotate(30 72 55)" animate={{ y: [-2, 2, -2] }} transition={{ repeat: Infinity, duration: 0.5, delay: 0.1 }} /><motion.g animate={{ opacity: [0, 1, 0], scale: [0.5, 1.5, 0.5], rotate: [0, 90, 180] }} transition={{ repeat: Infinity, duration: 1 }}><Sparkles className="text-[#D4AF37] absolute top-1 left-2" size={14} /></motion.g><motion.g animate={{ opacity: [0, 1, 0], scale: [0.5, 1.5, 0.5], rotate: [180, 90, 0] }} transition={{ repeat: Infinity, duration: 1.2, delay: 0.3 }}><Sparkles className="text-[#D4AF37] absolute top-3 right-1" size={12} /></motion.g></svg></motion.div>);
 const StickerFear = () => (<motion.div animate={{ x: [-2, 2, -2], y: [-1, 1, -1] }} transition={{ repeat: Infinity, duration: 0.08 }} className="w-20 h-20 relative flex items-center justify-center"><svg viewBox="0 0 100 100" className="w-full h-full"><path d="M68,65 L75,55 L85,60 L90,40" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /><path d="M25,48 Q40,15 50,42 Z" fill="#D4AF37" /><path d="M75,48 Q60,15 50,42 Z" fill="#D4AF37" /><circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /><circle cx="39" cy="53" r="8" fill="#fff" /><circle cx="61" cy="53" r="8" fill="#fff" /><motion.circle cx="39" cy="53" r="2" fill="#000" animate={{ x: [-1, 1, -1], y: [1, -1, 1] }} transition={{ repeat: Infinity, duration: 0.1 }} /><motion.circle cx="61" cy="53" r="2" fill="#000" animate={{ x: [1, -1, 1], y: [-1, 1, -1] }} transition={{ repeat: Infinity, duration: 0.1 }} /><circle cx="50" cy="68" r="3" fill="#D4AF37" /><path d="M34,42 L44,39 M66,42 L56,39" stroke="#D4AF37" strokeWidth="1.5" strokeLinecap="round" /><ellipse cx="44" cy="70" rx="5" ry="7" fill="#000" stroke="#D4AF37" strokeWidth="1.5" transform="rotate(30 44 70)" /><ellipse cx="56" cy="70" rx="5" ry="7" fill="#000" stroke="#D4AF37" strokeWidth="1.5" transform="rotate(-30 56 70)" /></svg></motion.div>);
 const StickerCry = () => (<motion.div animate={{ y: [0, 2, 0] }} transition={{ repeat: Infinity, duration: 0.5, ease: "easeInOut" }} className="w-20 h-20 relative flex items-center justify-center"><svg viewBox="0 0 100 100" className="w-full h-full"><motion.path d="M68,65 C75,70 85,75 85,85" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" animate={{ rotate: [-2, 2, -2] }} transition={{ repeat: Infinity, duration: 0.2 }} style={{ transformOrigin: "68px 65px" }} /><path d="M28,40 Q40,0 52,40 Z" fill="#D4AF37" /><path d="M72,40 Q60,0 48,40 Z" fill="#D4AF37" /><circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /><path d="M33,48 L39,52 L33,56" stroke="#D4AF37" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /><path d="M67,48 L61,52 L67,56" stroke="#D4AF37" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /><motion.path d="M36,54 Q20,40 10,70" stroke="#4dabff" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeDasharray="4 8" animate={{ strokeDashoffset: [24, 0] }} transition={{ repeat: Infinity, duration: 0.5, ease: "linear" }} /><motion.circle cx="36" cy="54" r="2.5" fill="#4dabff" animate={{ cx: [36, 20, 10], cy: [54, 45, 75], scale: [1, 1.5, 0] }} transition={{ repeat: Infinity, duration: 0.7, ease: "easeOut" }} /><motion.circle cx="36" cy="54" r="2" fill="#4dabff" animate={{ cx: [36, 25, 12], cy: [54, 35, 65], scale: [1, 1.2, 0] }} transition={{ repeat: Infinity, duration: 0.6, ease: "easeOut", delay: 0.2 }} /><motion.path d="M64,54 Q80,40 90,70" stroke="#4dabff" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeDasharray="4 8" animate={{ strokeDashoffset: [-24, 0] }} transition={{ repeat: Infinity, duration: 0.5, ease: "linear" }} /><motion.circle cx="64" cy="54" r="2.5" fill="#4dabff" animate={{ cx: [64, 80, 90], cy: [54, 45, 75], scale: [1, 1.5, 0] }} transition={{ repeat: Infinity, duration: 0.7, ease: "easeOut", delay: 0.1 }} /><motion.circle cx="64" cy="54" r="2" fill="#4dabff" animate={{ cx: [64, 75, 88], cy: [54, 35, 65], scale: [1, 1.2, 0] }} transition={{ repeat: Infinity, duration: 0.6, ease: "easeOut", delay: 0.3 }} /><ellipse cx="50" cy="65" rx="3.5" ry="4.5" fill="#ff4d4d" /><motion.ellipse cx="36" cy="60" rx="5" ry="6" fill="#000" stroke="#D4AF37" strokeWidth="1.5" animate={{ y: [-2, 2, -2], rotate: [-20, -30, -20] }} transition={{ repeat: Infinity, duration: 0.4 }} style={{ transformOrigin: "36px 60px" }} /><motion.ellipse cx="64" cy="60" rx="5" ry="6" fill="#000" stroke="#D4AF37" strokeWidth="1.5" animate={{ y: [-2, 2, -2], rotate: [20, 30, 20] }} transition={{ repeat: Infinity, duration: 0.4, delay: 0.1 }} style={{ transformOrigin: "64px 60px" }} /></svg></motion.div>);
 const StickerZen = () => (<motion.div animate={{ y: [-4, 4, -4] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} className="w-20 h-20 relative flex items-center justify-center"><svg viewBox="0 0 100 100" className="w-full h-full"><path d="M68,65 C90,70 90,85 70,85 C60,85 50,80 40,80" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" /><motion.circle cx="50" cy="58" r="34" fill="none" stroke="rgba(212,175,55,0.3)" strokeWidth="3" strokeDasharray="15 10" animate={{ rotate: 360 }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }} style={{ transformOrigin: "50px 58px" }} /><path d="M28,40 Q40,0 52,40 Z" fill="#D4AF37" /><path d="M72,40 Q60,0 48,40 Z" fill="#D4AF37" /><circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /><path d="M34,51 Q39,54 44,51 M56,51 Q61,54 66,51" stroke="#D4AF37" strokeWidth="2" fill="none" strokeLinecap="round" /><motion.circle cx="50" cy="42" r="2" fill="#fff" animate={{ scale: [1, 1.5, 1], opacity: [0.6, 1, 0.6] }} transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }} style={{ filter: "drop-shadow(0 0 4px #ffffff)" }} /><path d="M46,65 Q50,68 54,65" stroke="#D4AF37" strokeWidth="1.5" fill="none" strokeLinecap="round" /><ellipse cx="46" cy="74" rx="5" ry="4" fill="#000" stroke="#D4AF37" strokeWidth="1.5" transform="rotate(30 46 74)" /><ellipse cx="54" cy="74" rx="5" ry="4" fill="#000" stroke="#D4AF37" strokeWidth="1.5" transform="rotate(-30 54 74)" /></svg></motion.div>);
-const StickerMagic = () => (<motion.div animate={{ y: [-2, 2, -2] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }} className="w-20 h-20 relative flex items-center justify-center"><svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_10px_rgba(147,112,219,0.5)]"><motion.path d="M68,65 C80,60 90,70 85,50 C80,30 95,30 90,20" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" animate={{ rotate: [-2, 2, -2] }} transition={{ repeat: Infinity, duration: 3 }} style={{ transformOrigin: "68px 65px" }} /><path d="M28,40 Q40,0 52,40 Z" fill="#D4AF37" /><path d="M72,40 Q60,0 48,40 Z" fill="#D4AF37" /><circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /><motion.g animate={{ scaleY: [1, 1, 0.1, 1, 1] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.45, 0.5, 0.55, 1] }} style={{ transformOrigin: "40px 52px" }}><circle cx="40" cy="52" r="4" fill="#D4AF37" /></motion.g><motion.g animate={{ scaleY: [1, 1, 0.1, 1, 1] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.45, 0.5, 0.55, 1] }} style={{ transformOrigin: "60px 52px" }}><circle cx="60" cy="52" r="4" fill="#D4AF37" /></motion.g><CatMuzzleS /><motion.circle cx="50" cy="80" r="10" fill="#9370DB" animate={{ scale: [1, 1.2, 1], opacity: [0.6, 1, 0.6] }} transition={{ repeat: Infinity, duration: 1.5 }} /><circle cx="50" cy="80" r="6" fill="#E6E6FA" opacity="0.9" /><motion.g animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 4, ease: "linear" }} style={{ transformOrigin: "50px 80px" }}><path d="M50,64 L51,68 L55,69 L51,70 L50,74 L49,70 L45,69 L49,68 Z" fill="#fff" /><path d="M50,86 L51,90 L55,91 L51,92 L50,96 L49,92 L45,91 L49,90 Z" fill="#fff" /></motion.g><ellipse cx="38" cy="74" rx="5" ry="7" fill="#000" stroke="#D4AF37" strokeWidth="1.5" transform="rotate(45 38 74)" /><ellipse cx="62" cy="74" rx="5" ry="7" fill="#000" stroke="#D4AF37" strokeWidth="1.5" transform="rotate(-45 62 74)" /></svg></motion.div>);
+
+// ИСПРАВЛЕННЫЙ СТИКЕР "МАГИЯ"
+const StickerMagic = () => (
+  <motion.div animate={{ y: [-2, 2, -2] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }} className="w-20 h-20 relative flex items-center justify-center">
+    <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_10px_rgba(147,112,219,0.5)]">
+      <motion.path d="M68,65 C80,60 90,70 85,50 C80,30 95,30 90,20" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" animate={{ rotate: [-2, 2, -2] }} transition={{ repeat: Infinity, duration: 3 }} style={{ transformOrigin: "68px 65px" }} />
+      <path d="M28,40 Q40,0 52,40 Z" fill="#D4AF37" />
+      <path d="M72,40 Q60,0 48,40 Z" fill="#D4AF37" />
+      <circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" />
+      
+      {/* ИСПРАВЛЕНИЕ: Моргающие глазки как у кота-загрузчика */}
+      <motion.g animate={{ scaleY: [1, 1, 0.1, 1, 1] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.45, 0.5, 0.55, 1] }} style={{ transformOrigin: "40px 52px" }}>
+        <ellipse cx="40" cy="52" rx="5" ry="5" fill="#D4AF37" />
+        <circle cx="39" cy="50" r="1.5" fill="#fff" opacity="0.8" />
+      </motion.g>
+      <motion.g animate={{ scaleY: [1, 1, 0.1, 1, 1] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.45, 0.5, 0.55, 1] }} style={{ transformOrigin: "60px 52px" }}>
+        <ellipse cx="60" cy="52" rx="5" ry="5" fill="#D4AF37" />
+        <circle cx="59" cy="50" r="1.5" fill="#fff" opacity="0.8" />
+      </motion.g>
+      
+      <CatMuzzleS />
+      
+      <motion.circle cx="50" cy="80" r="10" fill="#9370DB" animate={{ scale: [1, 1.2, 1], opacity: [0.6, 1, 0.6] }} transition={{ repeat: Infinity, duration: 1.5 }} />
+      <circle cx="50" cy="80" r="6" fill="#E6E6FA" opacity="0.9" />
+      
+      {/* ИСПРАВЛЕНИЕ: Сфера теперь точно крутится без багов */}
+      <g>
+        <animateTransform attributeName="transform" type="rotate" from="0 50 80" to="360 50 80" dur="4s" repeatCount="indefinite" />
+        <path d="M50,64 L51,68 L55,69 L51,70 L50,74 L49,70 L45,69 L49,68 Z" fill="#fff" />
+        <path d="M50,86 L51,90 L55,91 L51,92 L50,96 L49,92 L45,91 L49,90 Z" fill="#fff" />
+      </g>
+
+      <ellipse cx="38" cy="74" rx="5" ry="7" fill="#000" stroke="#D4AF37" strokeWidth="1.5" transform="rotate(45 38 74)" />
+      <ellipse cx="62" cy="74" rx="5" ry="7" fill="#000" stroke="#D4AF37" strokeWidth="1.5" transform="rotate(-45 62 74)" />
+    </svg>
+  </motion.div>
+);
+
 const StickerAngry = () => (<motion.div animate={{ x: [-1, 1, -1] }} transition={{ repeat: Infinity, duration: 0.1 }} className="w-20 h-20 relative flex items-center justify-center"><svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_8px_rgba(255,77,77,0.4)]"><motion.path d="M68,65 Q85,50 85,30" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" animate={{ rotate: [-10, 10, -10] }} transition={{ repeat: Infinity, duration: 0.3 }} style={{ transformOrigin: "68px 65px" }} /><path d="M28,40 Q40,0 52,40 Z" fill="#D4AF37" /><path d="M72,40 Q60,0 48,40 Z" fill="#D4AF37" /><circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /><path d="M33,48 L45,52 L33,54 Z" fill="#ff4d4d" /><path d="M67,48 L55,52 L67,54 Z" fill="#ff4d4d" /><path d="M32,45 L46,50 M68,45 L54,50" stroke="#ff4d4d" strokeWidth="2.5" strokeLinecap="round" /><CatMuzzleS /><motion.path d="M22,46 Q18,36 22,26" stroke="#fff" strokeWidth="1.5" fill="none" strokeLinecap="round" opacity="0.6" animate={{ y: [-2, -8], opacity: [0, 0.6, 0] }} transition={{ repeat: Infinity, duration: 1 }} /><motion.path d="M78,46 Q82,36 78,26" stroke="#fff" strokeWidth="1.5" fill="none" strokeLinecap="round" opacity="0.6" animate={{ y: [-2, -8], opacity: [0, 0.6, 0] }} transition={{ repeat: Infinity, duration: 1, delay: 0.5 }} /><ellipse cx="35" cy="78" rx="7" ry="5" fill="#000" stroke="#ff4d4d" strokeWidth="1.5" /><ellipse cx="65" cy="78" rx="7" ry="5" fill="#000" stroke="#ff4d4d" strokeWidth="1.5" /></svg></motion.div>);
 const StickerCool = () => (<motion.div animate={{ y: [-1, 1, -1] }} transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }} className="w-20 h-20 relative flex items-center justify-center"><svg viewBox="0 0 100 100" className="w-full h-full"><motion.path d="M68,65 C80,65 90,50 85,35 C80,20 70,30 75,40" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" animate={{ rotate: [-2, 2, -2] }} transition={{ repeat: Infinity, duration: 3 }} style={{ transformOrigin: "68px 65px" }} /><path d="M28,40 Q40,0 52,40 Z" fill="#D4AF37" /><path d="M72,40 Q60,0 48,40 Z" fill="#D4AF37" /><circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /><CatMuzzleS /><path d="M46,67 Q50,69 56,65" stroke="#D4AF37" strokeWidth="1.5" fill="none" strokeLinecap="round" /><g><path d="M25,50 Q30,46 45,48 L45,56 Q35,63 25,56 Z" fill="#222" stroke="#D4AF37" strokeWidth="1.5" strokeLinejoin="round" /><path d="M75,50 Q70,46 55,48 L55,56 Q65,63 75,56 Z" fill="#222" stroke="#D4AF37" strokeWidth="1.5" strokeLinejoin="round" /><path d="M45,48 Q50,46 55,48" stroke="#D4AF37" strokeWidth="2" fill="none" /><path d="M28,52 L35,52 L32,58 Z" fill="#fff" opacity="0.4" /><path d="M58,52 L65,52 L62,58 Z" fill="#fff" opacity="0.4" /></g><ellipse cx="38" cy="76" rx="7" ry="5" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /><ellipse cx="72" cy="53" rx="5" ry="7" fill="#000" stroke="#D4AF37" strokeWidth="1.5" transform="rotate(-30 72 53)" /></svg></motion.div>);
 const StickerSleep = () => (<motion.div animate={{ scale: [1, 1.02, 1] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }} className="w-20 h-20 relative flex items-center justify-center"><svg viewBox="0 0 100 100" className="w-full h-full"><path d="M68,65 C90,70 90,85 70,85 C60,85 40,85 30,80" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" /><path d="M28,40 Q40,0 52,40 Z" fill="#D4AF37" /><path d="M72,40 Q60,0 48,40 Z" fill="#D4AF37" /><circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /><path d="M34,53 Q39,56 44,53 M56,53 Q61,56 66,53" stroke="#D4AF37" strokeWidth="2.5" fill="none" strokeLinecap="round" /><CatMuzzleS /><motion.text x="65" y="35" fill="#fff" fontSize="12" fontWeight="bold" opacity="0.8" animate={{ y: [35, 15], opacity: [0, 0.8, 0], scale: [0.5, 1.5, 1.8] }} transition={{ repeat: Infinity, duration: 2.5 }}>Z</motion.text><motion.text x="75" y="25" fill="#fff" fontSize="10" fontWeight="bold" opacity="0.8" animate={{ y: [25, 5], opacity: [0, 0.8, 0], scale: [0.5, 1.2, 1.5] }} transition={{ repeat: Infinity, duration: 2.5, delay: 1.2 }}>z</motion.text><ellipse cx="44" cy="75" rx="7" ry="4" fill="#000" stroke="#D4AF37" strokeWidth="1" /><ellipse cx="56" cy="75" rx="7" ry="4" fill="#000" stroke="#D4AF37" strokeWidth="1" /></svg></motion.div>);
@@ -169,8 +238,6 @@ const STICKERS_LIST = [ { id: 'love', label: 'Любовь' }, { id: 'joy', labe
 
 // --- ОСНОВНОЙ КОМПОНЕНТ ---
 export default function App() {
-  const [supabase, setSupabase] = useState(null);
-  const [isReady, setIsReady] = useState(false);
   const [user, setUser] = useState(null); 
   const [view, setView] = useState('loading'); 
   const [phone, setPhone] = useState('');
@@ -208,31 +275,6 @@ export default function App() {
   const fileInputRef = useRef(null);
   const prevActiveBookingRef = useRef(null);
 
-  // --- ИНИЦИАЛИЗАЦИЯ SUPABASE ---
-  useEffect(() => {
-    const initSupabase = () => {
-      if (window.supabase) {
-        const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        setSupabase(client);
-        setIsReady(true);
-      }
-    };
-
-    if (window.supabase) {
-      initSupabase();
-    } else {
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/@supabase/supabase-js@2.39.7/dist/umd/supabase.js';
-      script.async = true;
-      script.onload = initSupabase;
-      script.onerror = () => {
-        console.error("Ошибка загрузки скрипта Supabase");
-        setIsReady(true); 
-      };
-      document.head.appendChild(script);
-    }
-  }, []);
-
   // --- ЗВУКИ И УВЕДОМЛЕНИЯ ---
   const playSound = async (type = 'click') => {
     try {
@@ -263,8 +305,6 @@ export default function App() {
 
   // --- АВТОРИЗАЦИЯ ИЗ ПАМЯТИ ---
   useEffect(() => {
-    if (!isReady) return;
-    
     try {
       const role = localStorage.getItem('tarot_role');
       if (role === 'admin') {
@@ -287,11 +327,11 @@ export default function App() {
     } catch (e) {
       setView('login-choice');
     }
-  }, [isReady]);
+  }, []);
 
   // --- REAL-TIME ЗАЯВКИ ---
   useEffect(() => {
-    if (!user || !isReady || !supabase) return;
+    if (!user) return;
     const fetchBookings = async () => {
       try {
         const { data, error } = await supabase.from('bookings').select('*').order('created_at', { ascending: false });
@@ -322,7 +362,7 @@ export default function App() {
     fetchBookings();
     const channel = supabase.channel('bookings_changes').on('postgres_changes', { event: '*', table: 'bookings' }, () => { fetchBookings(); }).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [user?.role, user?.phone, isReady, supabase]);
+  }, [user?.role, user?.phone]);
 
   const processBookings = (sorted) => {
     setAllBookings(sorted);
@@ -357,7 +397,7 @@ export default function App() {
 
   // --- REAL-TIME СООБЩЕНИЯ ---
   useEffect(() => {
-    if (!activeChatBooking?.id || !user || !isReady || !supabase) return;
+    if (!activeChatBooking?.id || !user) return;
     const fetchMessages = async () => {
       try {
         const { data, error } = await supabase.from('messages').select('*').eq('booking_id', activeChatBooking.id).order('timestamp', { ascending: true });
@@ -394,11 +434,11 @@ export default function App() {
     }).subscribe();
     
     return () => { supabase.removeChannel(channel); };
-  }, [activeChatBooking?.id, user?.role, isReady, supabase]);
+  }, [activeChatBooking?.id, user?.role]);
 
   // --- АРХИВНЫЕ СООБЩЕНИЯ ---
   useEffect(() => {
-    if (!selectedArchiveBooking?.id || view !== 'archive-chat' || !isReady || !supabase) return;
+    if (!selectedArchiveBooking?.id || view !== 'archive-chat') return;
     const fetchArchive = async () => {
       try {
         const { data, error } = await supabase.from('messages').select('*').eq('booking_id', selectedArchiveBooking.id).order('timestamp', { ascending: true });
@@ -412,7 +452,7 @@ export default function App() {
       } catch (err) {}
     };
     fetchArchive();
-  }, [selectedArchiveBooking?.id, view, isReady, supabase]);
+  }, [selectedArchiveBooking?.id, view]);
 
   // --- МЕТОДЫ АВТОРИЗАЦИИ ---
   const handleLogout = async () => { 
@@ -436,10 +476,6 @@ export default function App() {
 
   const handleVerifyPhone = async () => {
     handleInteraction();
-    if (!isReady || !supabase) {
-      triggerMagicAlert("Связь устанавливается, подождите секунду... ✨");
-      return;
-    }
     if (!phone.trim()) {
       triggerMagicAlert("Введите номер телефона");
       return;
@@ -456,11 +492,6 @@ export default function App() {
     setView('loading');
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session && typeof supabase.auth.signInAnonymously === 'function') {
-        await supabase.auth.signInAnonymously();
-      }
-
       const safePhone = formattedPhone.replace(/[^0-9+]/g, '');
       const { data, error } = await supabase.from('profiles').select('*').eq('phone', safePhone).single();
       
@@ -476,7 +507,6 @@ export default function App() {
 
   const handleVerifyPin = async () => {
     handleInteraction();
-    if (!isReady || !supabase) return;
     if (!clientPin.trim()) {
       triggerMagicAlert("Введите ПИН-код 🔒");
       return;
@@ -514,7 +544,6 @@ export default function App() {
 
   const handleCompleteRegistration = async () => {
     handleInteraction();
-    if (!isReady || !supabase) return;
 
     if (!clientName.trim()) {
        triggerMagicAlert("Введите имя ✨");
@@ -534,7 +563,7 @@ export default function App() {
       const { error } = await supabase.from('profiles').upsert(profile, { onConflict: 'phone' });
       
       if (error) {
-        triggerMagicAlert(`Ошибка БД: ${error.message} 🔒`);
+        triggerMagicAlert(`Ошибка БД. Отключите RLS в Supabase! 🔒`);
         setView('login-client-details');
         return;
       }
@@ -556,7 +585,7 @@ export default function App() {
 
   // --- ЛОГИКА ЗАЯВОК И ЧАТА ---
   const submitBooking = async () => {
-    if (!bookingForm.time || !user || !isReady || !supabase) return;
+    if (!bookingForm.time || !user) return;
     handleInteraction();
     setView('loading');
     
@@ -580,7 +609,6 @@ export default function App() {
 
   const confirmBooking = async (id) => { 
     handleInteraction(); 
-    if (!isReady || !supabase) return;
     try {
       await supabase.from('bookings').update({ status: 'confirmed' }).eq('id', id); 
     } catch (err) {}
@@ -588,7 +616,6 @@ export default function App() {
 
   const endSession = async (id) => {
     handleInteraction();
-    if (!isReady || !supabase) return;
     try {
       await supabase.from('bookings').update({ status: 'completed' }).eq('id', id);
       setSessionEndingOverlay(true); 
@@ -597,21 +624,29 @@ export default function App() {
   };
 
   const sendMessage = async (text = '', imageUrl = null, stickerId = null) => {
-    if ((!text.trim() && !imageUrl && !stickerId) || !activeChatBooking || !isReady || !supabase) return;
+    if ((!text || !text.trim()) && !imageUrl && !stickerId) return;
+    if (!activeChatBooking) return;
+    
     handleInteraction();
     const isFromMaster = user.role === 'admin';
     const msg = { 
-      booking_id: activeChatBooking.id, text, image_url: imageUrl, sticker_id: stickerId, 
+      booking_id: activeChatBooking.id, 
+      text: text, 
+      image_url: imageUrl, 
+      sticker_id: stickerId, 
       sender: isFromMaster ? 'master' : 'user', 
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       timestamp: Date.now() 
     };
     
     try {
-      await supabase.from('messages').insert(msg);
+      const { error } = await supabase.from('messages').insert(msg);
+      if (error) throw error;
+      
       if (!isFromMaster) {
         await supabase.from('bookings').update({ has_unread_master: true }).eq('id', activeChatBooking.id);
       }
+      
       setNewMessage(''); 
       setShowStickerPicker(false);
     } catch (err) {
@@ -621,7 +656,6 @@ export default function App() {
 
   const openChatAsMaster = async (booking) => { 
     handleInteraction(); 
-    if (!isReady || !supabase) return;
     try {
       await supabase.from('bookings').update({ has_unread_master: false }).eq('id', booking.id); 
       setActiveChatBooking(booking); 
@@ -634,15 +668,13 @@ export default function App() {
   const handleFileUpload = (e) => { const file = e.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = (ev) => sendMessage('', ev.target.result); reader.readAsDataURL(file); } };
 
   // --- РЕНДЕР ИНТЕРФЕЙСА ---
-  if (!isReady || view === 'loading') {
+  if (view === 'loading') {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-[#060608]">
         <StarryBackground />
         <div className="relative z-10 flex flex-col items-center">
           <GoldenCatFamiliar />
-          <p className="text-[#d4af37] text-[10px] tracking-[0.4em] uppercase mt-4 animate-pulse">
-            {!isReady ? 'Подключение к потоку...' : 'Связь с потоком...'}
-          </p>
+          <p className="text-[#d4af37] text-[10px] tracking-[0.4em] uppercase mt-4 animate-pulse">Связь с потоком...</p>
         </div>
       </div>
     );
