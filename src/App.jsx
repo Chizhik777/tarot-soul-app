@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/+esm';
 import { 
   MessageCircle, 
   Calendar as CalendarIcon, 
@@ -33,18 +32,19 @@ import {
 } from 'lucide-react';
 
 /**
- * TAROT SOUL APP v26.0 (Ultimate Fixes Edition)
- * - Восстановлена инициализация Supabase (createClient).
- * - Починен и внедрен функционал PIN-кода (регистрация и вход).
- * - Починена отправка текста и фото в чате (убраны тихие блокировки).
- * - Починена анимация глаз и сферы у стикера "Магия".
+ * TAROT SOUL APP v27.1 (Dynamic Script Fix)
+ * - Полный сброс всех состояний при Logout (идеально для тестов).
+ * - Починена кнопка "Открыть чат" в модальном окне (исправлены z-index).
+ * - Отреставрирован стикер "Магия" (моргание + стабильное вращение).
+ * - Железобетонная функция отправки сообщений и фото.
+ * - ИСПРАВЛЕНИЕ: Удален конфликтующий ESM-импорт, добавлена безопасная динамическая загрузка.
  */
 
 const SUPABASE_URL = "https://hvqdnasfjtbipuuvblbw.supabase.co"; 
 const SUPABASE_ANON_KEY = "sb_publishable_s080zBFK5LwnBIavU_44yw_QElRnhCk"; 
 
-// Инициализация базы данных! (Эта строка была утеряна в прошлой версии)
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Инициализация базы данных (динамически)
+let supabase = null;
 
 const MASTER_SECRET_CODE = "2026";
 
@@ -191,7 +191,7 @@ const StickerFear = () => (<motion.div animate={{ x: [-2, 2, -2], y: [-1, 1, -1]
 const StickerCry = () => (<motion.div animate={{ y: [0, 2, 0] }} transition={{ repeat: Infinity, duration: 0.5, ease: "easeInOut" }} className="w-20 h-20 relative flex items-center justify-center"><svg viewBox="0 0 100 100" className="w-full h-full"><motion.path d="M68,65 C75,70 85,75 85,85" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" animate={{ rotate: [-2, 2, -2] }} transition={{ repeat: Infinity, duration: 0.2 }} style={{ transformOrigin: "68px 65px" }} /><path d="M28,40 Q40,0 52,40 Z" fill="#D4AF37" /><path d="M72,40 Q60,0 48,40 Z" fill="#D4AF37" /><circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /><path d="M33,48 L39,52 L33,56" stroke="#D4AF37" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /><path d="M67,48 L61,52 L67,56" stroke="#D4AF37" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" /><motion.path d="M36,54 Q20,40 10,70" stroke="#4dabff" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeDasharray="4 8" animate={{ strokeDashoffset: [24, 0] }} transition={{ repeat: Infinity, duration: 0.5, ease: "linear" }} /><motion.circle cx="36" cy="54" r="2.5" fill="#4dabff" animate={{ cx: [36, 20, 10], cy: [54, 45, 75], scale: [1, 1.5, 0] }} transition={{ repeat: Infinity, duration: 0.7, ease: "easeOut" }} /><motion.circle cx="36" cy="54" r="2" fill="#4dabff" animate={{ cx: [36, 25, 12], cy: [54, 35, 65], scale: [1, 1.2, 0] }} transition={{ repeat: Infinity, duration: 0.6, ease: "easeOut", delay: 0.2 }} /><motion.path d="M64,54 Q80,40 90,70" stroke="#4dabff" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeDasharray="4 8" animate={{ strokeDashoffset: [-24, 0] }} transition={{ repeat: Infinity, duration: 0.5, ease: "linear" }} /><motion.circle cx="64" cy="54" r="2.5" fill="#4dabff" animate={{ cx: [64, 80, 90], cy: [54, 45, 75], scale: [1, 1.5, 0] }} transition={{ repeat: Infinity, duration: 0.7, ease: "easeOut", delay: 0.1 }} /><motion.circle cx="64" cy="54" r="2" fill="#4dabff" animate={{ cx: [64, 75, 88], cy: [54, 35, 65], scale: [1, 1.2, 0] }} transition={{ repeat: Infinity, duration: 0.6, ease: "easeOut", delay: 0.3 }} /><ellipse cx="50" cy="65" rx="3.5" ry="4.5" fill="#ff4d4d" /><motion.ellipse cx="36" cy="60" rx="5" ry="6" fill="#000" stroke="#D4AF37" strokeWidth="1.5" animate={{ y: [-2, 2, -2], rotate: [-20, -30, -20] }} transition={{ repeat: Infinity, duration: 0.4 }} style={{ transformOrigin: "36px 60px" }} /><motion.ellipse cx="64" cy="60" rx="5" ry="6" fill="#000" stroke="#D4AF37" strokeWidth="1.5" animate={{ y: [-2, 2, -2], rotate: [20, 30, 20] }} transition={{ repeat: Infinity, duration: 0.4, delay: 0.1 }} style={{ transformOrigin: "64px 60px" }} /></svg></motion.div>);
 const StickerZen = () => (<motion.div animate={{ y: [-4, 4, -4] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} className="w-20 h-20 relative flex items-center justify-center"><svg viewBox="0 0 100 100" className="w-full h-full"><path d="M68,65 C90,70 90,85 70,85 C60,85 50,80 40,80" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" /><motion.circle cx="50" cy="58" r="34" fill="none" stroke="rgba(212,175,55,0.3)" strokeWidth="3" strokeDasharray="15 10" animate={{ rotate: 360 }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }} style={{ transformOrigin: "50px 58px" }} /><path d="M28,40 Q40,0 52,40 Z" fill="#D4AF37" /><path d="M72,40 Q60,0 48,40 Z" fill="#D4AF37" /><circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" /><path d="M34,51 Q39,54 44,51 M56,51 Q61,54 66,51" stroke="#D4AF37" strokeWidth="2" fill="none" strokeLinecap="round" /><motion.circle cx="50" cy="42" r="2" fill="#fff" animate={{ scale: [1, 1.5, 1], opacity: [0.6, 1, 0.6] }} transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }} style={{ filter: "drop-shadow(0 0 4px #ffffff)" }} /><path d="M46,65 Q50,68 54,65" stroke="#D4AF37" strokeWidth="1.5" fill="none" strokeLinecap="round" /><ellipse cx="46" cy="74" rx="5" ry="4" fill="#000" stroke="#D4AF37" strokeWidth="1.5" transform="rotate(30 46 74)" /><ellipse cx="54" cy="74" rx="5" ry="4" fill="#000" stroke="#D4AF37" strokeWidth="1.5" transform="rotate(-30 54 74)" /></svg></motion.div>);
 
-// ИСПРАВЛЕННЫЙ СТИКЕР "МАГИЯ"
+// --- ИСПРАВЛЕННЫЙ СТИКЕР "МАГИЯ" ---
 const StickerMagic = () => (
   <motion.div animate={{ y: [-2, 2, -2] }} transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }} className="w-20 h-20 relative flex items-center justify-center">
     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_10px_rgba(147,112,219,0.5)]">
@@ -200,7 +200,7 @@ const StickerMagic = () => (
       <path d="M72,40 Q60,0 48,40 Z" fill="#D4AF37" />
       <circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" />
       
-      {/* ИСПРАВЛЕНИЕ: Моргающие глазки как у кота-загрузчика */}
+      {/* Моргающие глазки */}
       <motion.g animate={{ scaleY: [1, 1, 0.1, 1, 1] }} transition={{ duration: 4, repeat: Infinity, times: [0, 0.45, 0.5, 0.55, 1] }} style={{ transformOrigin: "40px 52px" }}>
         <ellipse cx="40" cy="52" rx="5" ry="5" fill="#D4AF37" />
         <circle cx="39" cy="50" r="1.5" fill="#fff" opacity="0.8" />
@@ -215,7 +215,7 @@ const StickerMagic = () => (
       <motion.circle cx="50" cy="80" r="10" fill="#9370DB" animate={{ scale: [1, 1.2, 1], opacity: [0.6, 1, 0.6] }} transition={{ repeat: Infinity, duration: 1.5 }} />
       <circle cx="50" cy="80" r="6" fill="#E6E6FA" opacity="0.9" />
       
-      {/* ИСПРАВЛЕНИЕ: Сфера теперь точно крутится без багов */}
+      {/* Вращающиеся блики в сфере */}
       <g>
         <animateTransform attributeName="transform" type="rotate" from="0 50 80" to="360 50 80" dur="4s" repeatCount="indefinite" />
         <path d="M50,64 L51,68 L55,69 L51,70 L50,74 L49,70 L45,69 L49,68 Z" fill="#fff" />
@@ -238,6 +238,7 @@ const STICKERS_LIST = [ { id: 'love', label: 'Любовь' }, { id: 'joy', labe
 
 // --- ОСНОВНОЙ КОМПОНЕНТ ---
 export default function App() {
+  const [isReady, setIsReady] = useState(false);
   const [user, setUser] = useState(null); 
   const [view, setView] = useState('loading'); 
   const [phone, setPhone] = useState('');
@@ -275,6 +276,32 @@ export default function App() {
   const fileInputRef = useRef(null);
   const prevActiveBookingRef = useRef(null);
 
+  // --- 1. БЕЗОПАСНАЯ ИНИЦИАЛИЗАЦИЯ SUPABASE ---
+  useEffect(() => {
+    const initSupabase = () => {
+      if (window.supabase) {
+        if (!supabase) {
+          supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+        setIsReady(true);
+      }
+    };
+
+    if (window.supabase) {
+      initSupabase();
+    } else {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/@supabase/supabase-js@2.39.7/dist/umd/supabase.js';
+      script.async = true;
+      script.onload = initSupabase;
+      script.onerror = () => {
+        console.error("Ошибка загрузки скрипта Supabase");
+        setIsReady(true); 
+      };
+      document.head.appendChild(script);
+    }
+  }, []);
+
   // --- ЗВУКИ И УВЕДОМЛЕНИЯ ---
   const playSound = async (type = 'click') => {
     try {
@@ -305,6 +332,8 @@ export default function App() {
 
   // --- АВТОРИЗАЦИЯ ИЗ ПАМЯТИ ---
   useEffect(() => {
+    if (!isReady) return;
+    
     try {
       const role = localStorage.getItem('tarot_role');
       if (role === 'admin') {
@@ -327,11 +356,11 @@ export default function App() {
     } catch (e) {
       setView('login-choice');
     }
-  }, []);
+  }, [isReady]);
 
   // --- REAL-TIME ЗАЯВКИ ---
   useEffect(() => {
-    if (!user) return;
+    if (!user || !isReady || !supabase) return;
     const fetchBookings = async () => {
       try {
         const { data, error } = await supabase.from('bookings').select('*').order('created_at', { ascending: false });
@@ -362,7 +391,7 @@ export default function App() {
     fetchBookings();
     const channel = supabase.channel('bookings_changes').on('postgres_changes', { event: '*', table: 'bookings' }, () => { fetchBookings(); }).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [user?.role, user?.phone]);
+  }, [user?.role, user?.phone, isReady]);
 
   const processBookings = (sorted) => {
     setAllBookings(sorted);
@@ -397,7 +426,7 @@ export default function App() {
 
   // --- REAL-TIME СООБЩЕНИЯ ---
   useEffect(() => {
-    if (!activeChatBooking?.id || !user) return;
+    if (!activeChatBooking?.id || !user || !isReady || !supabase) return;
     const fetchMessages = async () => {
       try {
         const { data, error } = await supabase.from('messages').select('*').eq('booking_id', activeChatBooking.id).order('timestamp', { ascending: true });
@@ -434,11 +463,11 @@ export default function App() {
     }).subscribe();
     
     return () => { supabase.removeChannel(channel); };
-  }, [activeChatBooking?.id, user?.role]);
+  }, [activeChatBooking?.id, user?.role, isReady]);
 
   // --- АРХИВНЫЕ СООБЩЕНИЯ ---
   useEffect(() => {
-    if (!selectedArchiveBooking?.id || view !== 'archive-chat') return;
+    if (!selectedArchiveBooking?.id || view !== 'archive-chat' || !isReady || !supabase) return;
     const fetchArchive = async () => {
       try {
         const { data, error } = await supabase.from('messages').select('*').eq('booking_id', selectedArchiveBooking.id).order('timestamp', { ascending: true });
@@ -452,13 +481,34 @@ export default function App() {
       } catch (err) {}
     };
     fetchArchive();
-  }, [selectedArchiveBooking?.id, view]);
+  }, [selectedArchiveBooking?.id, view, isReady]);
 
-  // --- МЕТОДЫ АВТОРИЗАЦИИ ---
+  // --- МЕТОДЫ АВТОРИЗАЦИИ И СБРОС ---
   const handleLogout = async () => { 
     handleInteraction(); 
     try { localStorage.clear(); } catch(e){}
+    
+    // Абсолютный сброс всех переменных при выходе!
     setUser(null); 
+    setPhone('');
+    setClientPin('');
+    setClientName('');
+    setClientGender('female');
+    setMasterPass('');
+    setAllBookings([]);
+    setActiveChatBooking(null);
+    setMessages([]);
+    setNewMessage('');
+    setBookingForm({ service: '', date: getTodayDateString(), time: '' });
+    setSelectedArchiveBooking(null);
+    setArchiveMessages([]);
+    setSessionEndingOverlay(false);
+    setShowClientInfo(false);
+    setShowDonateModal(false);
+    
+    prevActiveBookingRef.current = null;
+    lastPendingCountRef.current = null;
+
     setView('login-choice'); 
   };
 
@@ -476,6 +526,10 @@ export default function App() {
 
   const handleVerifyPhone = async () => {
     handleInteraction();
+    if (!isReady || !supabase) {
+      triggerMagicAlert("Связь устанавливается, подождите секунду... ✨");
+      return;
+    }
     if (!phone.trim()) {
       triggerMagicAlert("Введите номер телефона");
       return;
@@ -492,6 +546,11 @@ export default function App() {
     setView('loading');
 
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session && typeof supabase.auth.signInAnonymously === 'function') {
+        await supabase.auth.signInAnonymously();
+      }
+
       const safePhone = formattedPhone.replace(/[^0-9+]/g, '');
       const { data, error } = await supabase.from('profiles').select('*').eq('phone', safePhone).single();
       
@@ -501,12 +560,14 @@ export default function App() {
         setView('login-client-details');
       }
     } catch (err) {
+      console.warn("Phone verify warning:", err);
       setView('login-client-details');
     }
   };
 
   const handleVerifyPin = async () => {
     handleInteraction();
+    if (!isReady || !supabase) return;
     if (!clientPin.trim()) {
       triggerMagicAlert("Введите ПИН-код 🔒");
       return;
@@ -544,6 +605,7 @@ export default function App() {
 
   const handleCompleteRegistration = async () => {
     handleInteraction();
+    if (!isReady || !supabase) return;
 
     if (!clientName.trim()) {
        triggerMagicAlert("Введите имя ✨");
@@ -585,7 +647,7 @@ export default function App() {
 
   // --- ЛОГИКА ЗАЯВОК И ЧАТА ---
   const submitBooking = async () => {
-    if (!bookingForm.time || !user) return;
+    if (!bookingForm.time || !user || !isReady || !supabase) return;
     handleInteraction();
     setView('loading');
     
@@ -609,6 +671,7 @@ export default function App() {
 
   const confirmBooking = async (id) => { 
     handleInteraction(); 
+    if (!isReady || !supabase) return;
     try {
       await supabase.from('bookings').update({ status: 'confirmed' }).eq('id', id); 
     } catch (err) {}
@@ -616,6 +679,7 @@ export default function App() {
 
   const endSession = async (id) => {
     handleInteraction();
+    if (!isReady || !supabase) return;
     try {
       await supabase.from('bookings').update({ status: 'completed' }).eq('id', id);
       setSessionEndingOverlay(true); 
@@ -623,15 +687,22 @@ export default function App() {
     } catch (err) {}
   };
 
-  const sendMessage = async (text = '', imageUrl = null, stickerId = null) => {
-    if ((!text || !text.trim()) && !imageUrl && !stickerId) return;
-    if (!activeChatBooking) return;
+  // Железобетонная отправка фото и текста
+  const sendMessage = async (textStr = '', imageUrl = null, stickerId = null) => {
+    const text = typeof textStr === 'string' ? textStr : '';
+    
+    if (!text.trim() && !imageUrl && !stickerId) return;
+    if (!activeChatBooking) {
+      triggerMagicAlert("Чат не активен");
+      return;
+    }
+    if (!isReady || !supabase) return;
     
     handleInteraction();
     const isFromMaster = user.role === 'admin';
     const msg = { 
       booking_id: activeChatBooking.id, 
-      text: text, 
+      text: text.trim(), 
       image_url: imageUrl, 
       sticker_id: stickerId, 
       sender: isFromMaster ? 'master' : 'user', 
@@ -641,7 +712,11 @@ export default function App() {
     
     try {
       const { error } = await supabase.from('messages').insert(msg);
-      if (error) throw error;
+      if (error) {
+        console.error("Chat error:", error);
+        triggerMagicAlert(`Сбой отправки: ${error.message}`);
+        return;
+      }
       
       if (!isFromMaster) {
         await supabase.from('bookings').update({ has_unread_master: true }).eq('id', activeChatBooking.id);
@@ -650,12 +725,13 @@ export default function App() {
       setNewMessage(''); 
       setShowStickerPicker(false);
     } catch (err) {
-      triggerMagicAlert(`Ошибка отправки сообщения 🔒`);
+      triggerMagicAlert(`Системная ошибка чата`);
     }
   };
 
   const openChatAsMaster = async (booking) => { 
     handleInteraction(); 
+    if (!isReady || !supabase) return;
     try {
       await supabase.from('bookings').update({ has_unread_master: false }).eq('id', booking.id); 
       setActiveChatBooking(booking); 
@@ -665,16 +741,26 @@ export default function App() {
 
   const handleCopyDonate = () => { handleInteraction(); const textArea = document.createElement("textarea"); textArea.value = "5599002127322628"; document.body.appendChild(textArea); textArea.select(); try { document.execCommand('copy'); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (err) {} document.body.removeChild(textArea); };
   const handleSupportEmail = () => { handleInteraction(); window.open('mailto:cool.pauk2302@gmail.com', '_blank'); const textArea = document.createElement("textarea"); textArea.value = "cool.pauk2302@gmail.com"; document.body.appendChild(textArea); textArea.select(); try { document.execCommand('copy'); triggerMagicAlert('Email скопирован ✉️'); } catch (err) {} document.body.removeChild(textArea); };
-  const handleFileUpload = (e) => { const file = e.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = (ev) => sendMessage('', ev.target.result); reader.readAsDataURL(file); } };
+  
+  const handleFileUpload = (e) => { 
+    const file = e.target.files[0]; 
+    if (file) { 
+      const reader = new FileReader(); 
+      reader.onload = (ev) => sendMessage('', ev.target.result, null); 
+      reader.readAsDataURL(file); 
+    } 
+  };
 
   // --- РЕНДЕР ИНТЕРФЕЙСА ---
-  if (view === 'loading') {
+  if (!isReady || view === 'loading') {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-[#060608]">
         <StarryBackground />
         <div className="relative z-10 flex flex-col items-center">
           <GoldenCatFamiliar />
-          <p className="text-[#d4af37] text-[10px] tracking-[0.4em] uppercase mt-4 animate-pulse">Связь с потоком...</p>
+          <p className="text-[#d4af37] text-[10px] tracking-[0.4em] uppercase mt-4 animate-pulse">
+            {!isReady ? 'Подключение к потоку...' : 'Связь с потоком...'}
+          </p>
         </div>
       </div>
     );
@@ -718,11 +804,11 @@ export default function App() {
                  else if (activeChatBooking?.status === 'confirmed') setShowClientInfo(true); 
                  else triggerMagicAlert(activeChatBooking ? "Мастер скоро подтвердит запись ✨" : "Сначала запишитесь ✨"); 
                  setClientHasNotification(false); 
-               }} className="text-[#d4af37] p-2 relative">
+               }} className="text-[#d4af37] p-2 relative z-50">
                   <BellRing size={20} className={(user.role === 'admin' && allBookings.some(b => b.status === 'pending' || b.has_unread_master)) || clientHasNotification ? 'animate-bounce' : ''} />
                   {((user.role === 'admin' && allBookings.some(b => b.status === 'pending' || b.has_unread_master)) || clientHasNotification) && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-[#0d0d12]"></span>}
                </button>
-               <button onClick={handleLogout} className="text-white/10 hover:text-[#ff4d4d] p-2 transition-colors active:scale-90"><LogOut size={18} /></button>
+               <button onClick={handleLogout} className="text-white/10 hover:text-[#ff4d4d] p-2 transition-colors active:scale-90 relative z-50"><LogOut size={18} /></button>
             </div>
           </header>
         )}
@@ -1057,7 +1143,7 @@ export default function App() {
           {showDonateModal && (
             <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 text-center">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowDonateModal(false)} className="absolute inset-0 bg-black/95 backdrop-blur-md" />
-              <motion.div initial={{ scale: 0.8, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} className="relative w-full max-w-sm bg-[#1a1a24] border border-[#d4af37]/30 rounded-[3rem] p-8 shadow-2xl flex flex-col items-center">
+              <motion.div initial={{ scale: 0.8, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} className="relative z-10 w-full max-w-sm bg-[#1a1a24] border border-[#d4af37]/30 rounded-[3rem] p-8 shadow-2xl flex flex-col items-center">
                 <button onClick={() => { handleInteraction(); setShowDonateModal(false); }} className="absolute top-6 right-6 text-white/30 p-2"><X size={20}/></button>
                 <div className="w-16 h-16 bg-[#ff4d4d]/10 rounded-full flex items-center justify-center mb-6"><motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}><Heart size={32} className="text-[#ff4d4d]" fill="#ff4d4d" /></motion.div></div>
                 <h3 className="text-[#d4af37] text-base font-bold uppercase tracking-widest mb-2 font-serif">Энергообмен</h3>
@@ -1073,7 +1159,7 @@ export default function App() {
           {showSupportModal && (
             <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 text-center">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowSupportModal(false)} className="absolute inset-0 bg-black/95 backdrop-blur-md" />
-              <motion.div initial={{ scale: 0.8, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} className="relative w-full max-w-sm bg-[#1a1a24] border border-[#d4af37]/10 rounded-[3rem] p-8 shadow-2xl flex flex-col items-center">
+              <motion.div initial={{ scale: 0.8, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} className="relative z-10 w-full max-w-sm bg-[#1a1a24] border border-[#d4af37]/10 rounded-[3rem] p-8 shadow-2xl flex flex-col items-center">
                 <button onClick={() => { handleInteraction(); setShowSupportModal(false); }} className="absolute top-6 right-6 text-white/30 p-2"><X size={20}/></button>
                 <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-6"><Bug size={24} className="text-white/40" /></div>
                 <h3 className="text-white/80 text-base font-bold uppercase tracking-widest mb-2 font-serif">Поддержка</h3>
@@ -1086,9 +1172,9 @@ export default function App() {
         
         <AnimatePresence>
           {showClientInfo && activeChatBooking && (
-            <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 text-center">
+            <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 text-center">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowClientInfo(false)} className="absolute inset-0 bg-black/98 backdrop-blur-md" />
-              <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }} className="relative w-full max-w-sm bg-[#16161f] border-2 border-[#d4af37]/40 rounded-[3rem] p-10 shadow-2xl">
+              <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.8, opacity: 0 }} className="relative z-10 w-full max-w-sm bg-[#16161f] border-2 border-[#d4af37]/40 rounded-[3rem] p-10 shadow-2xl">
                 <div className="w-16 h-16 bg-[#d4af37]/10 rounded-full flex items-center justify-center mx-auto mb-6"><CalendarCheck size={32} className="text-[#d4af37] mx-auto" /></div>
                 <h3 className="text-[#d4af37] text-base font-bold uppercase tracking-widest mb-4">Ваша запись</h3>
                 <div className="space-y-3 mb-8 text-white/80 font-light">
@@ -1101,7 +1187,7 @@ export default function App() {
                     <p className="text-xl font-bold text-[#d4af37] font-mono">{activeChatBooking.time}</p>
                   </div>
                 </div>
-                <button onClick={() => { handleInteraction(); setShowClientInfo(false); setView('chat'); }} className="w-full bg-[#d4af37] text-black font-bold py-4 rounded-2xl uppercase text-[10px] active:scale-95 shadow-xl">Открыть чат</button>
+                <button onClick={(e) => { e.stopPropagation(); handleInteraction(); setShowClientInfo(false); setView('chat'); }} className="relative z-20 w-full bg-[#d4af37] text-black font-bold py-4 rounded-2xl uppercase text-[10px] active:scale-95 shadow-xl">Открыть чат</button>
               </motion.div>
             </div>
           )}
