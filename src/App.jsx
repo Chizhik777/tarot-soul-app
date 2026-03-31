@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/+esm';
 import { 
   MessageCircle, 
   Calendar as CalendarIcon, 
@@ -31,16 +30,18 @@ import {
 } from 'lucide-react';
 
 /**
- * TAROT SOUL APP v19.6 (Supabase Fix Edition)
- * - Устранен конфликт состояний подключения Supabase.
- * - Добавлен отлов тихих ошибок RLS.
- * - Внедрен бронебойный маппинг snake_case <-> camelCase.
+ * TAROT SOUL APP v19.7.1 (Fix Dynamic Require Error)
+ * - Внедрена настоящая авторизация по номеру телефона через Supabase (OTP).
+ * - Добавлен отлов ошибок ввода неверного кода из СМС.
+ * - Все анимации, звуки и дизайн v19.6 бережно сохранены.
+ * - ИСПРАВЛЕНО: Динамический импорт Supabase заменен на безопасную загрузку скрипта для сред предпросмотра.
  */
 
 const SUPABASE_URL = "https://hvqdnasfjtbipuuvblbw.supabase.co"; 
 const SUPABASE_ANON_KEY = "sb_publishable_s080zBFK5LwnBIavU_44yw_QElRnhCk"; 
-// ЕДИНОЕ ПОДКЛЮЧЕНИЕ К БАЗЕ
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ЕДИНОЕ ПОДКЛЮЧЕНИЕ К БАЗЕ (Инициализируется динамически)
+let supabase = null;
 
 const MASTER_SECRET_CODE = "2026";
 
@@ -176,6 +177,7 @@ const STICKERS_LIST = [ { id: 'love', label: 'Любовь' }, { id: 'joy', labe
 // --- ОСНОВНОЙ КОМПОНЕНТ ---
 
 export default function App() {
+  const [supabaseReady, setSupabaseReady] = useState(false);
   const [user, setUser] = useState(null); 
   const [view, setView] = useState('loading'); 
   const [phone, setPhone] = useState('');
@@ -210,6 +212,26 @@ export default function App() {
   const fileInputRef = useRef(null);
   const prevActiveBookingRef = useRef(null);
 
+  // --- ИНИЦИАЛИЗАЦИЯ SUPABASE ---
+  useEffect(() => {
+    const initSupabase = () => {
+      if (window.supabase) {
+        if (!supabase) supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        setSupabaseReady(true);
+      }
+    };
+
+    if (window.supabase) {
+      initSupabase();
+    } else {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+      script.async = true;
+      script.onload = initSupabase;
+      document.head.appendChild(script);
+    }
+  }, []);
+
   // --- ЗВУКИ И УВЕДОМЛЕНИЯ ---
   const playSound = async (type = 'click') => {
     try {
@@ -237,27 +259,46 @@ export default function App() {
   };
   const handleInteraction = () => playSound('click');
 
-  // --- АВТОРИЗАЦИЯ ИЗ ПАМЯТИ ---
+  // --- АВТОРИЗАЦИЯ ИЗ ПАМЯТИ & SUPABASE SESSION ---
   useEffect(() => {
-    const role = localStorage.getItem('tarot_role');
-    if (role === 'admin') {
-      setUser({ role: 'admin', phone: 'Master', name: 'Мастер Соул' });
-      setView('home');
-    } else if (role === 'client') {
-      const savedPhone = localStorage.getItem('tarot_phone');
-      const savedName = localStorage.getItem('tarot_name');
-      const savedGender = localStorage.getItem('tarot_gender');
-      if (savedPhone && savedName) {
-        setUser({ role: 'client', phone: savedPhone, name: savedName, gender: savedGender || 'female' });
-        setPhone(savedPhone);
+    if (!supabaseReady || !supabase) return;
+
+    // Восстанавливаем сессию Supabase (если есть)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const role = localStorage.getItem('tarot_role');
+      if (role === 'admin') {
+        setUser({ role: 'admin', phone: 'Master', name: 'Мастер Соул' });
         setView('home');
-      } else { setView('login-choice'); }
-    } else { setView('login-choice'); }
-  }, []);
+      } else if (role === 'client' && session) {
+        // Проверяем, что для клиента реально есть сессия Supabase
+        const savedPhone = localStorage.getItem('tarot_phone');
+        const savedName = localStorage.getItem('tarot_name');
+        const savedGender = localStorage.getItem('tarot_gender');
+        if (savedPhone && savedName) {
+          setUser({ role: 'client', phone: savedPhone, name: savedName, gender: savedGender || 'female' });
+          setPhone(savedPhone);
+          setView('home');
+        } else {
+          setView('login-choice');
+        }
+      } else {
+        setView('login-choice');
+      }
+    });
+
+    // Слушаем изменения сессии
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session && user?.role === 'client') {
+         // Если сессия истекла или вышли, чистим
+         handleLogout(false);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [supabaseReady]);
 
   // --- REAL-TIME: ЗАЯВКИ С БРОНЕБОЙНЫМ МАППИНГОМ ---
   useEffect(() => {
-    if (!user) return;
+    if (!user || !supabaseReady || !supabase) return;
     const fetchBookings = async () => {
       const { data, error } = await supabase.from('bookings').select('*').order('created_at', { ascending: false });
       
@@ -267,7 +308,6 @@ export default function App() {
       }
       
       if (data) {
-        // Уникальный маппинг: гарантирует работу независимо от того, какие колонки в базе (с подчеркиванием или без)
         const mappedData = data.map(d => ({
           id: d.id,
           client_phone: d.client_phone || d.clientPhone,
@@ -279,7 +319,6 @@ export default function App() {
           status: d.status,
           created_at: d.created_at || d.createdAt,
           has_unread_master: d.has_unread_master || d.hasUnreadMaster,
-          // Сортировочное поле
           createdAtTime: new Date(d.created_at || d.createdAt || 0).getTime()
         })).sort((a, b) => b.createdAtTime - a.createdAtTime);
 
@@ -290,7 +329,7 @@ export default function App() {
     
     const channel = supabase.channel('bookings_changes').on('postgres_changes', { event: '*', table: 'bookings' }, () => { fetchBookings(); }).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [user?.role, user?.phone]);
+  }, [user?.role, user?.phone, supabaseReady]);
 
   const processBookings = (sorted) => {
     setAllBookings(sorted);
@@ -324,7 +363,7 @@ export default function App() {
 
   // --- REAL-TIME: СООБЩЕНИЯ (MESSAGES) ---
   useEffect(() => {
-    if (!activeChatBooking?.id) return;
+    if (!activeChatBooking?.id || !user || !supabaseReady || !supabase) return;
     const fetchMessages = async () => {
       const { data, error } = await supabase.from('messages').select('*').eq('booking_id', activeChatBooking.id).order('timestamp', { ascending: true });
       if (error) console.error("Ошибка загрузки сообщений:", error);
@@ -355,11 +394,11 @@ export default function App() {
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     }).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [activeChatBooking?.id, user?.role]);
+  }, [activeChatBooking?.id, user?.role, supabaseReady]);
 
   // --- АРХИВНЫЕ СООБЩЕНИЯ ---
   useEffect(() => {
-    if (!selectedArchiveBooking?.id || view !== 'archive-chat') return;
+    if (!selectedArchiveBooking?.id || view !== 'archive-chat' || !supabaseReady || !supabase) return;
     const fetchArchive = async () => {
       const { data } = await supabase.from('messages').select('*').eq('booking_id', selectedArchiveBooking.id).order('timestamp', { ascending: true });
       if (data) {
@@ -371,10 +410,16 @@ export default function App() {
       }
     };
     fetchArchive();
-  }, [selectedArchiveBooking?.id, view]);
+  }, [selectedArchiveBooking?.id, view, supabaseReady]);
 
   // --- МЕТОДЫ ---
-  const handleLogout = () => { handleInteraction(); localStorage.clear(); setUser(null); setView('login-choice'); };
+  const handleLogout = async (callApi = true) => { 
+    handleInteraction(); 
+    if (callApi && supabase) await supabase.auth.signOut();
+    localStorage.clear(); 
+    setUser(null); 
+    setView('login-choice'); 
+  };
 
   const handleMasterLogin = async () => {
     handleInteraction();
@@ -385,29 +430,94 @@ export default function App() {
     } else triggerMagicAlert("Доступ закрыт 🔒");
   };
 
+  // 1. ОТПРАВКА СМС С КОДОМ (Реальный OTP Supabase)
+  const handleVerifyPhone = async () => {
+    handleInteraction();
+    if (!phone.trim() || !supabase) {
+      triggerMagicAlert("Введите номер телефона");
+      return;
+    }
+
+    // Приводим номер к формату E.164 (Supabase требует формат +79991234567)
+    let formattedPhone = phone.replace(/[^\d+]/g, '');
+    if (!formattedPhone.startsWith('+')) {
+      if (formattedPhone.startsWith('8')) formattedPhone = '+7' + formattedPhone.slice(1);
+      else if (formattedPhone.startsWith('7')) formattedPhone = '+' + formattedPhone;
+      else formattedPhone = '+' + formattedPhone;
+    }
+
+    setPhone(formattedPhone); // Обновляем в поле для наглядности
+    setView('loading'); // Показываем загрузку, пока идет запрос
+
+    const { error } = await supabase.auth.signInWithOtp({
+      phone: formattedPhone,
+    });
+
+    if (error) {
+      console.error("OTP Error:", error);
+      triggerMagicAlert(`Ошибка отправки: ${error.message}`);
+      setView('login-phone');
+    } else {
+      triggerMagicAlert("СМС с кодом отправлено! ✨");
+      setView('login-client-otp');
+    }
+  };
+
+  // 2. ПРОВЕРКА КОДА ИЗ СМС (Реальный OTP Supabase)
   const handleVerifyOtp = async () => {
     handleInteraction();
+    if (!clientOtp.trim() || !supabase) return;
+    
+    setView('loading');
+
+    const { data: authData, error: authError } = await supabase.auth.verifyOtp({
+      phone: phone,
+      token: clientOtp,
+      type: 'sms'
+    });
+
+    if (authError) {
+      console.error("Verify Error:", authError);
+      triggerMagicAlert(`Неверный код: ${authError.message}`);
+      setView('login-client-otp');
+      return;
+    }
+
+    // Авторизация прошла успешно! Теперь ищем профиль клиента в базе
     const safePhone = phone.replace(/[^0-9+]/g, '');
     const { data, error } = await supabase.from('profiles').select('*').eq('phone', safePhone).single();
+    
     if (data && !error) {
+      // Профиль есть -> логиним
       localStorage.setItem('tarot_role', 'client');
       localStorage.setItem('tarot_phone', safePhone);
       localStorage.setItem('tarot_name', data.name);
       localStorage.setItem('tarot_gender', data.gender);
       setUser({ role: 'client', phone: safePhone, ...data });
       setView('home');
-    } else setView('login-client-details');
+    } else {
+      // Профиля нет -> отправляем на создание
+      setView('login-client-details');
+    }
   };
 
+  // 3. СОЗДАНИЕ ПРОФИЛЯ
   const handleCompleteRegistration = async () => {
     handleInteraction();
+    if (!clientName.trim() || !supabase) {
+       triggerMagicAlert("Введите имя ✨");
+       return;
+    }
+    
     const safePhone = phone.replace(/[^0-9+]/g, '');
     const profile = { phone: safePhone, name: clientName, gender: clientGender };
+    
     const { error } = await supabase.from('profiles').upsert(profile);
     if (error) {
       triggerMagicAlert(`Ошибка регистрации: ${error.message}`);
       return;
     }
+    
     localStorage.setItem('tarot_role', 'client');
     localStorage.setItem('tarot_phone', safePhone);
     localStorage.setItem('tarot_name', clientName);
@@ -417,7 +527,7 @@ export default function App() {
   };
 
   const submitBooking = async () => {
-    if (!bookingForm.time || !user) return;
+    if (!bookingForm.time || !user || !supabase) return;
     handleInteraction();
     const newB = { 
       client_phone: user.phone, client_name: user.name, client_gender: user.gender, 
@@ -425,9 +535,7 @@ export default function App() {
       status: 'pending', created_at: new Date().toISOString(), has_unread_master: false 
     };
     
-    // ОТЛОВ ОШИБКИ RLS / ПОЛЕЙ
     const { error } = await supabase.from('bookings').insert(newB);
-    
     if (error) {
       console.error("Ошибка сохранения заявки:", error);
       triggerMagicAlert(`Сбой системы: ${error.message}`);
@@ -440,19 +548,21 @@ export default function App() {
 
   const confirmBooking = async (id) => { 
     handleInteraction(); 
+    if (!supabase) return;
     const { error } = await supabase.from('bookings').update({ status: 'confirmed' }).eq('id', id); 
     if (error) triggerMagicAlert(`Ошибка: ${error.message}`);
   };
 
   const endSession = async (id) => {
     handleInteraction();
+    if (!supabase) return;
     const { error } = await supabase.from('bookings').update({ status: 'completed' }).eq('id', id);
     if (error) { triggerMagicAlert(`Ошибка: ${error.message}`); return; }
     setSessionEndingOverlay(true); playSound('notification');
   };
 
   const sendMessage = async (text = '', imageUrl = null, stickerId = null) => {
-    if ((!text.trim() && !imageUrl && !stickerId) || !activeChatBooking) return;
+    if ((!text.trim() && !imageUrl && !stickerId) || !activeChatBooking || !supabase) return;
     handleInteraction();
     const isFromMaster = user.role === 'admin';
     const msg = { 
@@ -477,6 +587,7 @@ export default function App() {
 
   const openChatAsMaster = async (booking) => { 
     handleInteraction(); 
+    if (!supabase) return;
     await supabase.from('bookings').update({ has_unread_master: false }).eq('id', booking.id); 
     setActiveChatBooking(booking); setView('chat'); 
   };
@@ -487,9 +598,7 @@ export default function App() {
 
   const handleFileUpload = (e) => { const file = e.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = (ev) => sendMessage('', ev.target.result); reader.readAsDataURL(file); } };
 
-  const handleVerifyPhone = () => { handleInteraction(); if (phone.trim()) setView('login-client-otp'); };
-
-  if (view === 'loading') return <div className="fixed inset-0 flex items-center justify-center"><StarryBackground /><div className="relative z-10"><GoldenCatFamiliar /></div></div>;
+  if (view === 'loading' || !supabaseReady) return <div className="fixed inset-0 flex items-center justify-center"><StarryBackground /><div className="relative z-10"><GoldenCatFamiliar /></div></div>;
 
   return (
     <div className="fixed inset-0 bg-[#060608] flex items-center justify-center overflow-hidden font-sans text-white text-center">
@@ -508,7 +617,7 @@ export default function App() {
                   <BellRing size={20} className={(user.role === 'admin' && allBookings.some(b => b.status === 'pending' || b.has_unread_master)) || clientHasNotification ? 'animate-bounce' : ''} />
                   {((user.role === 'admin' && allBookings.some(b => b.status === 'pending' || b.has_unread_master)) || clientHasNotification) && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-[#0d0d12]"></span>}
                </button>
-               <button onClick={handleLogout} className="text-white/10 hover:text-[#ff4d4d] p-2 transition-colors active:scale-90"><LogOut size={18} /></button>
+               <button onClick={() => handleLogout(true)} className="text-white/10 hover:text-[#ff4d4d] p-2 transition-colors active:scale-90"><LogOut size={18} /></button>
             </div>
           </header>
         )}
@@ -519,7 +628,7 @@ export default function App() {
                 <div className="mb-6 pt-10"><GoldenCatFamiliar /></div>
                 <div className="w-full space-y-6">
                   <h1 className="text-3xl font-extralight text-[#d4af37] tracking-[0.5em] uppercase font-serif">Tarot Soul</h1>
-                  {view === 'login-choice' ? (<><button onClick={() => setView('login-phone')} className="w-full bg-[#d4af37] text-black font-bold py-6 rounded-[30px] shadow-xl uppercase text-xs active:scale-95 italic tracking-widest">Я Клиент</button><button onClick={() => setView('login-master')} className="w-full bg-white/[0.03] text-white/30 py-5 rounded-[30px] border border-white/5 uppercase text-[9px] tracking-[0.3em]">Мастер-вход</button></>) : view === 'login-phone' ? (<div className="text-left space-y-6 px-4"><button onClick={() => setView('login-choice')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button><div className="bg-[#16161f] rounded-3xl p-6 border border-white/5 flex items-center shadow-2xl focus-within:border-[#d4af37]/30 transition-all text-white"><Phone size={18} className="text-[#d4af37] mr-4 opacity-40" /><input type="tel" placeholder="Номер телефона" value={phone} onChange={(e) => setPhone(e.target.value)} className="bg-transparent border-none outline-none w-full text-lg font-light text-white" /></div><button onClick={handleVerifyPhone} className="w-full bg-[#d4af37] text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95 shadow-lg">Далее</button></div>) : view === 'login-client-otp' ? (<div className="text-left space-y-6 px-4"><button onClick={() => setView('login-phone')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button><div className="bg-[#16161f] rounded-3xl p-6 border border-[#d4af37]/20 flex items-center shadow-2xl text-white"><ShieldCheck size={18} className="text-[#d4af37] mr-4 opacity-40" /><input type="text" placeholder="****" value={clientOtp} onChange={(e) => setClientOtp(e.target.value)} className="bg-transparent border-none outline-none w-full text-2xl font-light text-[#d4af37] tracking-[0.5em] text-center" /></div><button onClick={handleVerifyOtp} className="w-full bg-white text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95">Далее</button></div>) : view === 'login-client-details' ? (<div className="text-center space-y-6 px-4"><h2 className="text-lg font-light uppercase tracking-widest text-[#d4af37]">Ваше Имя</h2><div className="bg-[#16161f] rounded-3xl p-6 border border-white/5 flex items-center shadow-2xl text-white"><input type="text" placeholder="Введите имя" value={clientName} onChange={(e) => setClientName(e.target.value)} className="bg-transparent border-none outline-none w-full text-lg font-light tracking-widest text-white text-center" /></div><div className="grid grid-cols-2 gap-3"><button onClick={() => setClientGender('female')} className={`p-5 rounded-3xl border flex flex-col items-center gap-2 transition-all ${clientGender === 'female' ? 'bg-[#d4af37]/10 border-[#d4af37] text-[#d4af37]' : 'bg-[#16161f] border-white/5 text-white/30'}`}><VenusIcon size={24} className={clientGender === 'female' ? 'text-[#d4af37]' : 'text-white/30'} /> <span className="text-[10px] uppercase tracking-widest">Женщина</span></button><button onClick={() => setClientGender('male')} className={`p-5 rounded-3xl border flex flex-col items-center gap-2 transition-all ${clientGender === 'male' ? 'bg-[#d4af37]/10 border-[#d4af37] text-[#d4af37]' : 'bg-[#16161f] border-white/5 text-white/30'}`}><MarsIcon size={24} className={clientGender === 'male' ? 'text-[#d4af37]' : 'text-white/30'} /> <span className="text-[10px] uppercase tracking-widest">Мужчина</span></button></div><button onClick={handleCompleteRegistration} className="w-full bg-[#d4af37] text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95 shadow-xl">Завершить</button></div>) : (<div className="text-center space-y-6 px-4"><button onClick={() => setView('login-choice')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button><div className="bg-[#16161f] rounded-3xl p-6 border border-[#d4af37]/20 shadow-2xl text-white"><h2 className="text-sm font-light uppercase tracking-widest text-white/60 mb-4 flex items-center justify-center gap-2"><KeyRound size={16}/> МАСТЕР-КЛЮЧ</h2><input type="password" placeholder="****" value={masterPass} onChange={(e) => setMasterPass(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleMasterLogin()} className="bg-transparent border-none outline-none w-full text-center text-4xl font-light tracking-[0.5em] text-[#d4af37]" /></div><button onClick={handleMasterLogin} className="w-full bg-white text-black font-bold py-5 rounded-[28px] active:scale-95 shadow-xl uppercase">Активировать</button></div>)}
+                  {view === 'login-choice' ? (<><button onClick={() => setView('login-phone')} className="w-full bg-[#d4af37] text-black font-bold py-6 rounded-[30px] shadow-xl uppercase text-xs active:scale-95 italic tracking-widest">Я Клиент</button><button onClick={() => setView('login-master')} className="w-full bg-white/[0.03] text-white/30 py-5 rounded-[30px] border border-white/5 uppercase text-[9px] tracking-[0.3em]">Мастер-вход</button></>) : view === 'login-phone' ? (<div className="text-left space-y-6 px-4"><button onClick={() => setView('login-choice')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button><div className="bg-[#16161f] rounded-3xl p-6 border border-white/5 flex items-center shadow-2xl focus-within:border-[#d4af37]/30 transition-all text-white"><Phone size={18} className="text-[#d4af37] mr-4 opacity-40" /><input type="tel" placeholder="+7 999 000 00 00" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleVerifyPhone()} className="bg-transparent border-none outline-none w-full text-lg font-light text-white" /></div><button onClick={handleVerifyPhone} className="w-full bg-[#d4af37] text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95 shadow-lg">Далее</button></div>) : view === 'login-client-otp' ? (<div className="text-left space-y-6 px-4"><button onClick={() => setView('login-phone')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button><div className="bg-[#16161f] rounded-3xl p-6 border border-[#d4af37]/20 flex items-center shadow-2xl text-white"><ShieldCheck size={18} className="text-[#d4af37] mr-4 opacity-40" /><input type="text" placeholder="******" value={clientOtp} onChange={(e) => setClientOtp(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleVerifyOtp()} className="bg-transparent border-none outline-none w-full text-2xl font-light text-[#d4af37] tracking-[0.5em] text-center" /></div><button onClick={handleVerifyOtp} className="w-full bg-white text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95">Подтвердить</button></div>) : view === 'login-client-details' ? (<div className="text-center space-y-6 px-4"><h2 className="text-lg font-light uppercase tracking-widest text-[#d4af37]">Ваше Имя</h2><div className="bg-[#16161f] rounded-3xl p-6 border border-white/5 flex items-center shadow-2xl text-white"><input type="text" placeholder="Введите имя" value={clientName} onChange={(e) => setClientName(e.target.value)} className="bg-transparent border-none outline-none w-full text-lg font-light tracking-widest text-white text-center" /></div><div className="grid grid-cols-2 gap-3"><button onClick={() => setClientGender('female')} className={`p-5 rounded-3xl border flex flex-col items-center gap-2 transition-all ${clientGender === 'female' ? 'bg-[#d4af37]/10 border-[#d4af37] text-[#d4af37]' : 'bg-[#16161f] border-white/5 text-white/30'}`}><VenusIcon size={24} className={clientGender === 'female' ? 'text-[#d4af37]' : 'text-white/30'} /> <span className="text-[10px] uppercase tracking-widest">Женщина</span></button><button onClick={() => setClientGender('male')} className={`p-5 rounded-3xl border flex flex-col items-center gap-2 transition-all ${clientGender === 'male' ? 'bg-[#d4af37]/10 border-[#d4af37] text-[#d4af37]' : 'bg-[#16161f] border-white/5 text-white/30'}`}><MarsIcon size={24} className={clientGender === 'male' ? 'text-[#d4af37]' : 'text-white/30'} /> <span className="text-[10px] uppercase tracking-widest">Мужчина</span></button></div><button onClick={handleCompleteRegistration} className="w-full bg-[#d4af37] text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95 shadow-xl">Завершить</button></div>) : (<div className="text-center space-y-6 px-4"><button onClick={() => setView('login-choice')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button><div className="bg-[#16161f] rounded-3xl p-6 border border-[#d4af37]/20 shadow-2xl text-white"><h2 className="text-sm font-light uppercase tracking-widest text-white/60 mb-4 flex items-center justify-center gap-2"><KeyRound size={16}/> МАСТЕР-КЛЮЧ</h2><input type="password" placeholder="****" value={masterPass} onChange={(e) => setMasterPass(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleMasterLogin()} className="bg-transparent border-none outline-none w-full text-center text-4xl font-light tracking-[0.5em] text-[#d4af37]" /></div><button onClick={handleMasterLogin} className="w-full bg-white text-black font-bold py-5 rounded-[28px] active:scale-95 shadow-xl uppercase">Активировать</button></div>)}
                 </div>
                 <div className="w-full flex justify-center pb-4 mt-12"><button onClick={() => setShowSupportModal(true)} className="text-[9px] text-white/30 hover:text-white/60 uppercase tracking-widest font-mono flex items-center gap-1.5 transition-colors"><Bug size={10} /> Сообщить о проблеме</button></div>
               </motion.div>
