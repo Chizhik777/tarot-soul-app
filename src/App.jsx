@@ -23,20 +23,22 @@ import {
   Archive,
   Copy,
   Check,
-  CreditCard,
   Bug,
   Mail
 } from 'lucide-react';
 
 /**
- * TAROT SOUL APP - FINAL PERFECT EDITION
- * - Авторизация по ПИН-коду (без СМС)
- * - Безопасное подключение к Supabase (без ошибок сборки Vercel)
- * - Полный комплект анимаций, звуков и стикеров
+ * TAROT SOUL APP v23.5 (Stable Connectivity Edition)
+ * - Устранен конфликт сборщика (Could not resolve "@supabase/supabase-js").
+ * - Устранена ошибка потери переменной (supabase is not defined).
+ * - Безопасная инициализация базы данных до рендера интерфейса.
  */
 
 const SUPABASE_URL = "https://hvqdnasfjtbipuuvblbw.supabase.co"; 
 const SUPABASE_ANON_KEY = "sb_publishable_s080zBFK5LwnBIavU_44yw_QElRnhCk"; 
+
+// Глобальная переменная для связи с базой (железобетонная область видимости)
+let supabase = null;
 
 const MASTER_SECRET_CODE = "2026";
 
@@ -63,7 +65,7 @@ const checkSlotStatus = (slotTime, selectedDate) => {
   return slotHour <= currentHour ? 'passed' : 'available';
 };
 
-// --- SVG ИКОНКИ ДЛЯ ПОЛА (Защита от ошибок Vercel) ---
+// --- SVG ИКОНКИ ДЛЯ ПОЛА ---
 const VenusIcon = ({ size, className }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="9" r="6"/><path d="M12 15v7"/><path d="M9 19h6"/></svg>
 );
@@ -117,12 +119,7 @@ const StarryBackground = () => {
 
 // --- УВЕДОМЛЕНИЯ ---
 const NotificationUI = ({ toast, onClose }) => (
-  <motion.div 
-    initial={{ y: -100, opacity: 0, scale: 0.8 }} 
-    animate={{ y: 0, opacity: 1, scale: 1 }} 
-    exit={{ x: 100, opacity: 0 }} 
-    className="fixed top-4 left-1/2 -translate-x-1/2 z-[600] bg-[#1a1a24]/98 border-2 border-[#d4af37]/60 backdrop-blur-3xl p-4 rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.9)] flex items-start gap-4 max-w-sm w-[92%] pointer-events-auto text-left"
-  >
+  <motion.div initial={{ y: -100, opacity: 0, scale: 0.8 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ x: 100, opacity: 0 }} className="fixed top-4 left-1/2 -translate-x-1/2 z-[600] bg-[#1a1a24]/98 border-2 border-[#d4af37]/60 backdrop-blur-3xl p-4 rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.9)] flex items-start gap-4 max-w-sm w-[92%] pointer-events-auto text-left">
     <div className="w-10 h-10 rounded-full bg-[#d4af37]/20 flex items-center justify-center flex-shrink-0"><Sparkles className="text-[#d4af37]" size={20} /></div>
     <div className="flex-1 font-light text-white/90 text-xs leading-snug">{toast.message}</div>
     <button onClick={onClose} className="text-white/20 hover:text-white p-1 flex-shrink-0"><X size={18}/></button>
@@ -176,7 +173,7 @@ const STICKERS_LIST = [ { id: 'love', label: 'Любовь' }, { id: 'joy', labe
 
 // --- ОСНОВНОЙ КОМПОНЕНТ ---
 export default function App() {
-  const [supabaseReady, setSupabaseReady] = useState(false);
+  const [isReady, setIsReady] = useState(false);
   const [user, setUser] = useState(null); 
   const [view, setView] = useState('loading'); 
   const [phone, setPhone] = useState('');
@@ -184,15 +181,18 @@ export default function App() {
   const [clientName, setClientName] = useState('');
   const [clientGender, setClientGender] = useState('female'); 
   const [masterPass, setMasterPass] = useState('');
+  
   const [toasts, setToasts] = useState([]);
   const [clientHasNotification, setClientHasNotification] = useState(false);
   const [showClientInfo, setShowClientInfo] = useState(false);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
+  
   const [allBookings, setAllBookings] = useState([]);
   const [activeChatBooking, setActiveChatBooking] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [bookingForm, setBookingForm] = useState({ service: '', date: getTodayDateString(), time: '' });
+  
   const [selectedArchiveBooking, setSelectedArchiveBooking] = useState(null);
   const [archiveMessages, setArchiveMessages] = useState([]);
   const [sessionEndingOverlay, setSessionEndingOverlay] = useState(false);
@@ -213,9 +213,22 @@ export default function App() {
 
   // --- ИНИЦИАЛИЗАЦИЯ SUPABASE ---
   useEffect(() => {
-    // В Vercel (Production) скрипт уже загружен, так как мы импортировали createClient, 
-    // но для безопасности и совместимости со средой Canvas делаем проверку:
-    setSupabaseReady(true);
+    const initSupabase = () => {
+      if (window.supabase && !supabase) {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      }
+      setIsReady(true);
+    };
+
+    if (window.supabase) {
+      initSupabase();
+    } else {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/@supabase/supabase-js@2.39.7/dist/umd/supabase.js';
+      script.async = true;
+      script.onload = initSupabase;
+      document.head.appendChild(script);
+    }
   }, []);
 
   // --- ЗВУКИ И УВЕДОМЛЕНИЯ ---
@@ -243,11 +256,12 @@ export default function App() {
     setToasts(prev => [...prev, newToast]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== newToast.id)), 8000);
   };
+
   const handleInteraction = () => playSound('click');
 
   // --- АВТОРИЗАЦИЯ ИЗ ПАМЯТИ ---
   useEffect(() => {
-    if (!supabaseReady) return;
+    if (!isReady) return;
     const role = localStorage.getItem('tarot_role');
     if (role === 'admin') {
       setUser({ role: 'admin', phone: 'Master', name: 'Мастер Соул' });
@@ -266,11 +280,11 @@ export default function App() {
     } else {
       setView('login-choice');
     }
-  }, [supabaseReady]);
+  }, [isReady]);
 
-  // --- REAL-TIME: ЗАЯВКИ ---
+  // --- REAL-TIME ЗАЯВКИ ---
   useEffect(() => {
-    if (!user || !supabaseReady) return;
+    if (!user || !isReady || !supabase) return;
     const fetchBookings = async () => {
       try {
         const { data, error } = await supabase.from('bookings').select('*').order('created_at', { ascending: false });
@@ -301,7 +315,7 @@ export default function App() {
     fetchBookings();
     const channel = supabase.channel('bookings_changes').on('postgres_changes', { event: '*', table: 'bookings' }, () => { fetchBookings(); }).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [user?.role, user?.phone, supabaseReady]);
+  }, [user?.role, user?.phone, isReady]);
 
   const processBookings = (sorted) => {
     setAllBookings(sorted);
@@ -336,7 +350,7 @@ export default function App() {
 
   // --- REAL-TIME СООБЩЕНИЯ ---
   useEffect(() => {
-    if (!activeChatBooking?.id || !user || !supabaseReady) return;
+    if (!activeChatBooking?.id || !user || !isReady || !supabase) return;
     const fetchMessages = async () => {
       try {
         const { data, error } = await supabase.from('messages').select('*').eq('booking_id', activeChatBooking.id).order('timestamp', { ascending: true });
@@ -373,11 +387,11 @@ export default function App() {
     }).subscribe();
     
     return () => { supabase.removeChannel(channel); };
-  }, [activeChatBooking?.id, user?.role, supabaseReady]);
+  }, [activeChatBooking?.id, user?.role, isReady]);
 
   // --- АРХИВНЫЕ СООБЩЕНИЯ ---
   useEffect(() => {
-    if (!selectedArchiveBooking?.id || view !== 'archive-chat' || !supabaseReady) return;
+    if (!selectedArchiveBooking?.id || view !== 'archive-chat' || !isReady || !supabase) return;
     const fetchArchive = async () => {
       try {
         const { data, error } = await supabase.from('messages').select('*').eq('booking_id', selectedArchiveBooking.id).order('timestamp', { ascending: true });
@@ -391,12 +405,12 @@ export default function App() {
       } catch (err) {}
     };
     fetchArchive();
-  }, [selectedArchiveBooking?.id, view, supabaseReady]);
+  }, [selectedArchiveBooking?.id, view, isReady]);
 
   // --- МЕТОДЫ АВТОРИЗАЦИИ ---
   const handleLogout = async () => { 
     handleInteraction(); 
-    localStorage.clear(); 
+    try { localStorage.clear(); } catch(e){}
     setUser(null); 
     setView('login-choice'); 
   };
@@ -404,7 +418,7 @@ export default function App() {
   const handleMasterLogin = async () => {
     handleInteraction();
     if (masterPass === MASTER_SECRET_CODE) {
-      try { localStorage.setItem('tarot_role', 'admin'); } catch(e) {}
+      try { localStorage.setItem('tarot_role', 'admin'); } catch(e){}
       setUser({ role: 'admin', phone: 'Master', name: 'Мастер Соул' });
       setView('home'); 
       setMasterPass('');
@@ -413,9 +427,13 @@ export default function App() {
     }
   };
 
-  // 1. ПРОВЕРКА НОМЕРА С ЗАЩИТОЙ
+  // 1. ПРОВЕРКА НОМЕРА
   const handleVerifyPhone = async () => {
     handleInteraction();
+    if (!isReady || !supabase) {
+      triggerMagicAlert("Связь устанавливается, подождите секунду... ✨");
+      return;
+    }
     if (!phone.trim()) {
       triggerMagicAlert("Введите номер телефона");
       return;
@@ -446,8 +464,9 @@ export default function App() {
         setView('login-client-details');
       }
     } catch (err) {
-      console.warn("Phone verify warning:", err);
-      if (err.message) triggerMagicAlert(`Связь: ${err.message}`);
+      if (err.message && err.code !== 'PGRST116') {
+        triggerMagicAlert(`Связь: ${err.message}`);
+      }
       setView('login-client-details');
     }
   };
@@ -455,6 +474,7 @@ export default function App() {
   // 2. ПРОВЕРКА ПИН-КОДА
   const handleVerifyPin = async () => {
     handleInteraction();
+    if (!isReady || !supabase) return;
     if (!clientPin.trim()) {
       triggerMagicAlert("Введите ПИН-код 🔒");
       return;
@@ -473,7 +493,7 @@ export default function App() {
             localStorage.setItem('tarot_phone', safePhone);
             localStorage.setItem('tarot_name', data.name);
             localStorage.setItem('tarot_gender', data.gender);
-          } catch(e) {}
+          } catch(e){}
           setUser({ role: 'client', phone: safePhone, ...data });
           setView('home');
         } else {
@@ -493,6 +513,7 @@ export default function App() {
   // 3. СОЗДАНИЕ ПРОФИЛЯ
   const handleCompleteRegistration = async () => {
     handleInteraction();
+    if (!isReady || !supabase) return;
 
     if (!clientName.trim()) {
        triggerMagicAlert("Введите имя ✨");
@@ -522,14 +543,11 @@ export default function App() {
         localStorage.setItem('tarot_phone', safePhone);
         localStorage.setItem('tarot_name', clientName);
         localStorage.setItem('tarot_gender', clientGender);
-      } catch (e) {
-        console.warn("Storage blocked", e);
-      }
+      } catch (e) {}
 
       setUser({ role: 'client', ...profile });
       setView('home');
     } catch (err) {
-      console.error(err);
       triggerMagicAlert(`Сбой: ${err.message || 'ошибка сети'} 🔒`);
       setView('login-client-details');
     }
@@ -537,7 +555,7 @@ export default function App() {
 
   // --- ЛОГИКА ЗАЯВОК И ЧАТА ---
   const submitBooking = async () => {
-    if (!bookingForm.time || !user) return;
+    if (!bookingForm.time || !user || !isReady || !supabase) return;
     handleInteraction();
     setView('loading');
     
@@ -554,13 +572,14 @@ export default function App() {
       triggerMagicAlert("Заявка отправлена! Ожидайте сигнал ✨"); 
       setView('home');
     } catch (err) {
-      triggerMagicAlert(`Ошибка сохранения. Отключите RLS! 🔒`);
+      triggerMagicAlert(`Ошибка сохранения: ${err.message} 🔒`);
       setView('booking-datetime');
     }
   };
 
   const confirmBooking = async (id) => { 
     handleInteraction(); 
+    if (!isReady || !supabase) return;
     try {
       await supabase.from('bookings').update({ status: 'confirmed' }).eq('id', id); 
     } catch (err) {}
@@ -568,6 +587,7 @@ export default function App() {
 
   const endSession = async (id) => {
     handleInteraction();
+    if (!isReady || !supabase) return;
     try {
       await supabase.from('bookings').update({ status: 'completed' }).eq('id', id);
       setSessionEndingOverlay(true); 
@@ -576,7 +596,7 @@ export default function App() {
   };
 
   const sendMessage = async (text = '', imageUrl = null, stickerId = null) => {
-    if ((!text.trim() && !imageUrl && !stickerId) || !activeChatBooking) return;
+    if ((!text.trim() && !imageUrl && !stickerId) || !activeChatBooking || !isReady || !supabase) return;
     handleInteraction();
     const isFromMaster = user.role === 'admin';
     const msg = { 
@@ -600,6 +620,7 @@ export default function App() {
 
   const openChatAsMaster = async (booking) => { 
     handleInteraction(); 
+    if (!isReady || !supabase) return;
     try {
       await supabase.from('bookings').update({ has_unread_master: false }).eq('id', booking.id); 
       setActiveChatBooking(booking); 
@@ -612,13 +633,15 @@ export default function App() {
   const handleFileUpload = (e) => { const file = e.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = (ev) => sendMessage('', ev.target.result); reader.readAsDataURL(file); } };
 
   // --- РЕНДЕР ИНТЕРФЕЙСА ---
-  if (view === 'loading') {
+  if (!isReady || view === 'loading') {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-[#060608]">
         <StarryBackground />
         <div className="relative z-10 flex flex-col items-center">
           <GoldenCatFamiliar />
-          <p className="text-[#d4af37] text-[10px] tracking-[0.4em] uppercase mt-4 animate-pulse">Связь с потоком...</p>
+          <p className="text-[#d4af37] text-[10px] tracking-[0.4em] uppercase mt-4 animate-pulse">
+            {!isReady ? 'Подключение к потоку...' : 'Связь с потоком...'}
+          </p>
         </div>
       </div>
     );
