@@ -404,7 +404,7 @@ export default function App() {
   const handleMasterLogin = async () => {
     handleInteraction();
     if (masterPass === MASTER_SECRET_CODE) {
-      localStorage.setItem('tarot_role', 'admin');
+      try { localStorage.setItem('tarot_role', 'admin'); } catch(e) {}
       setUser({ role: 'admin', phone: 'Master', name: 'Мастер Соул' });
       setView('home'); 
       setMasterPass('');
@@ -413,7 +413,7 @@ export default function App() {
     }
   };
 
-  // 1. ПРОВЕРКА НОМЕРА
+  // 1. ПРОВЕРКА НОМЕРА С ЗАЩИТОЙ
   const handleVerifyPhone = async () => {
     handleInteraction();
     if (!phone.trim()) {
@@ -432,6 +432,11 @@ export default function App() {
     setView('loading');
 
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session && typeof supabase.auth.signInAnonymously === 'function') {
+        await supabase.auth.signInAnonymously();
+      }
+
       const safePhone = formattedPhone.replace(/[^0-9+]/g, '');
       const { data, error } = await supabase.from('profiles').select('*').eq('phone', safePhone).single();
       
@@ -441,7 +446,8 @@ export default function App() {
         setView('login-client-details');
       }
     } catch (err) {
-      // Защита от зависания при ошибках
+      console.warn("Phone verify warning:", err);
+      if (err.message) triggerMagicAlert(`Связь: ${err.message}`);
       setView('login-client-details');
     }
   };
@@ -462,10 +468,12 @@ export default function App() {
       
       if (data && !error) {
         if (data.pin === clientPin) {
-          localStorage.setItem('tarot_role', 'client');
-          localStorage.setItem('tarot_phone', safePhone);
-          localStorage.setItem('tarot_name', data.name);
-          localStorage.setItem('tarot_gender', data.gender);
+          try {
+            localStorage.setItem('tarot_role', 'client');
+            localStorage.setItem('tarot_phone', safePhone);
+            localStorage.setItem('tarot_name', data.name);
+            localStorage.setItem('tarot_gender', data.gender);
+          } catch(e) {}
           setUser({ role: 'client', phone: safePhone, ...data });
           setView('home');
         } else {
@@ -477,7 +485,7 @@ export default function App() {
         setView('login-phone');
       }
     } catch (err) {
-      triggerMagicAlert('Ошибка связи 🔒');
+      triggerMagicAlert(`Ошибка связи: ${err.message || 'сбой сети'} 🔒`);
       setView('login-client-pin');
     }
   };
@@ -504,19 +512,25 @@ export default function App() {
       const { error } = await supabase.from('profiles').upsert(profile, { onConflict: 'phone' });
       
       if (error) {
-        triggerMagicAlert(`Ошибка БД. Отключите RLS в Supabase! 🔒`);
+        triggerMagicAlert(`Ошибка БД: ${error.message} 🔒`);
         setView('login-client-details');
         return;
       }
       
-      localStorage.setItem('tarot_role', 'client');
-      localStorage.setItem('tarot_phone', safePhone);
-      localStorage.setItem('tarot_name', clientName);
-      localStorage.setItem('tarot_gender', clientGender);
+      try {
+        localStorage.setItem('tarot_role', 'client');
+        localStorage.setItem('tarot_phone', safePhone);
+        localStorage.setItem('tarot_name', clientName);
+        localStorage.setItem('tarot_gender', clientGender);
+      } catch (e) {
+        console.warn("Storage blocked", e);
+      }
+
       setUser({ role: 'client', ...profile });
       setView('home');
     } catch (err) {
-      triggerMagicAlert(`Сбой при сохранении 🔒`);
+      console.error(err);
+      triggerMagicAlert(`Сбой: ${err.message || 'ошибка сети'} 🔒`);
       setView('login-client-details');
     }
   };
