@@ -30,10 +30,11 @@ import {
 } from 'lucide-react';
 
 /**
- * TAROT SOUL APP v19.8 (Flawless Auth Edition - Mock SMS)
- * - Локальная симуляция СМС (работает без платных провайдеров).
- * - Безопасная загрузка Supabase (без ошибок компиляции в Vercel).
- * - Полный пакет анимаций, стикеров и звуков.
+ * TAROT SOUL APP v20.0 (Perfect PIN Auth Edition)
+ * - Убраны любые следы СМС-авторизации.
+ * - Внедрена безупречная система ПИН-кодов.
+ * - Защита от "вечной загрузки" (try/catch для всех запросов).
+ * - Полный пакет анимаций, стикеров и звуков сохранен.
  */
 
 const SUPABASE_URL = "https://hvqdnasfjtbipuuvblbw.supabase.co"; 
@@ -407,15 +408,13 @@ export default function App() {
     } else triggerMagicAlert("Доступ закрыт 🔒");
   };
 
-  // 1. ПРОВЕРКА НОМЕРА И СЕССИИ (С ЗАЩИТОЙ ОТ ЗАВИСАНИЯ)
+  // 1. ПРОВЕРКА НОМЕРА С ЗАЩИТОЙ
   const handleVerifyPhone = async () => {
     handleInteraction();
-    
     if (!supabase) {
-      triggerMagicAlert("Устанавливаем связь с космосом... Нажмите еще раз ✨");
+      triggerMagicAlert("Связь с базой устанавливается... Попробуйте еще раз ✨");
       return;
     }
-
     if (!phone.trim()) {
       triggerMagicAlert("Введите номер телефона");
       return;
@@ -429,46 +428,37 @@ export default function App() {
     }
 
     setPhone(formattedPhone);
-    setView('loading'); // Включаем кота
+    setView('loading');
 
     try {
-      // Обеспечиваем анонимную сессию для безопасных запросов к БД
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData?.session && typeof supabase.auth.signInAnonymously === 'function') {
-        const { error: anonError } = await supabase.auth.signInAnonymously();
-        if (anonError) console.warn("Anon session skip:", anonError);
+        await supabase.auth.signInAnonymously();
       }
 
       const safePhone = formattedPhone.replace(/[^0-9+]/g, '');
       const { data, error } = await supabase.from('profiles').select('*').eq('phone', safePhone).single();
       
       if (data && !error) {
-        // Профиль найден -> запрашиваем ПИН-код
         setView('login-client-pin');
       } else {
-        // Профиль не найден -> регистрация нового
         setView('login-client-details');
       }
-    } catch (error) {
-      console.error("Ошибка при проверке профиля:", error);
-      // Fallback на регистрацию в случае непредвиденного сбоя связи, чтобы кот не зависал
+    } catch (err) {
       setView('login-client-details');
     }
   };
 
-  // 2. ПРОВЕРКА ПИН-КОДА И ВХОД
+  // 2. ПРОВЕРКА ПИН-КОДА
   const handleVerifyPin = async () => {
     handleInteraction();
-
-    if (!supabase) return;
-
     if (!clientPin.trim()) {
-      triggerMagicAlert("Введите ПИН-код");
+      triggerMagicAlert("Введите ПИН-код 🔒");
       return;
     }
     
     setView('loading');
-
+    
     try {
       const safePhone = phone.replace(/[^0-9+]/g, '');
       const { data, error } = await supabase.from('profiles').select('*').eq('phone', safePhone).single();
@@ -482,16 +472,15 @@ export default function App() {
           setUser({ role: 'client', phone: safePhone, ...data });
           setView('home');
         } else {
-          triggerMagicAlert(`Неверный ПИН-код 🔒`);
+          triggerMagicAlert('Неверный ПИН-код 🔒');
           setView('login-client-pin');
         }
       } else {
-        triggerMagicAlert(`Профиль не найден`);
+        triggerMagicAlert('Профиль не найден');
         setView('login-phone');
       }
-    } catch (error) {
-      console.error("Ошибка проверки ПИН-кода:", error);
-      triggerMagicAlert(`Произошла ошибка связи 🔒`);
+    } catch (err) {
+      triggerMagicAlert('Ошибка связи 🔒');
       setView('login-client-pin');
     }
   };
@@ -518,7 +507,8 @@ export default function App() {
       
       const { error } = await supabase.from('profiles').upsert(profile);
       if (error) {
-        triggerMagicAlert(`Ошибка регистрации: ${error.message}`);
+        console.error(error);
+        triggerMagicAlert(`Ошибка БД: ${error.message}`);
         setView('login-client-details');
         return;
       }
@@ -529,8 +519,8 @@ export default function App() {
       localStorage.setItem('tarot_gender', clientGender);
       setUser({ role: 'client', ...profile });
       setView('home');
-    } catch (error) {
-      console.error("Ошибка сохранения профиля:", error);
+    } catch (err) {
+      console.error(err);
       triggerMagicAlert(`Сбой при сохранении 🔒`);
       setView('login-client-details');
     }
@@ -623,7 +613,56 @@ export default function App() {
                 <div className="mb-6 pt-10"><GoldenCatFamiliar /></div>
                 <div className="w-full space-y-6">
                   <h1 className="text-3xl font-extralight text-[#d4af37] tracking-[0.5em] uppercase font-serif">Tarot Soul</h1>
-                  {view === 'login-choice' ? (<><button onClick={() => setView('login-phone')} className="w-full bg-[#d4af37] text-black font-bold py-6 rounded-[30px] shadow-xl uppercase text-xs active:scale-95 italic tracking-widest">Я Клиент</button><button onClick={() => setView('login-master')} className="w-full bg-white/[0.03] text-white/30 py-5 rounded-[30px] border border-white/5 uppercase text-[9px] tracking-[0.3em]">Мастер-вход</button></>) : view === 'login-phone' ? (<div className="text-left space-y-6 px-4"><button onClick={() => setView('login-choice')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button><div className="bg-[#16161f] rounded-3xl p-6 border border-white/5 flex items-center shadow-2xl focus-within:border-[#d4af37]/30 transition-all text-white"><Phone size={18} className="text-[#d4af37] mr-4 opacity-40" /><input type="tel" placeholder="+7 999 000 00 00" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleVerifyPhone()} className="bg-transparent border-none outline-none w-full text-lg font-light text-white" /></div><button onClick={handleVerifyPhone} className="w-full bg-[#d4af37] text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95 shadow-lg">Далее</button></div>) : view === 'login-client-pin' ? (<div className="text-left space-y-6 px-4"><button onClick={() => setView('login-phone')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button><div className="bg-[#16161f] rounded-3xl p-6 border border-[#d4af37]/20 flex items-center shadow-2xl text-white"><KeyRound size={18} className="text-[#d4af37] mr-4 opacity-40" /><input type="password" placeholder="ПИН-КОД" value={clientPin} onChange={(e) => setClientPin(e.target.value.replace(/\D/g, '').slice(0, 4))} onKeyPress={(e) => e.key === 'Enter' && handleVerifyPin()} className="bg-transparent border-none outline-none w-full text-2xl font-light text-[#d4af37] tracking-[0.5em] text-center" /></div><button onClick={handleVerifyPin} className="w-full bg-white text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95">Войти</button></div>) : view === 'login-client-details' ? (<div className="text-center space-y-6 px-4"><h2 className="text-lg font-light uppercase tracking-widest text-[#d4af37]">Создание профиля</h2><div className="bg-[#16161f] rounded-3xl p-6 border border-white/5 flex items-center shadow-2xl text-white"><input type="text" placeholder="Ваше Имя" value={clientName} onChange={(e) => setClientName(e.target.value)} className="bg-transparent border-none outline-none w-full text-lg font-light tracking-widest text-white text-center" /></div><div className="bg-[#16161f] rounded-3xl p-6 border border-[#d4af37]/20 flex items-center shadow-2xl text-white"><KeyRound size={18} className="text-[#d4af37] mr-4 opacity-40" /><input type="password" placeholder="ПРИДУМАЙТЕ ПИН (4 цифры)" value={clientPin} onChange={(e) => setClientPin(e.target.value.replace(/\D/g, '').slice(0, 4))} className="bg-transparent border-none outline-none w-full text-sm font-light text-[#d4af37] tracking-[0.2em] text-center" /></div><div className="grid grid-cols-2 gap-3"><button onClick={() => setClientGender('female')} className={`p-5 rounded-3xl border flex flex-col items-center gap-2 transition-all ${clientGender === 'female' ? 'bg-[#d4af37]/10 border-[#d4af37] text-[#d4af37]' : 'bg-[#16161f] border-white/5 text-white/30'}`}><VenusIcon size={24} className={clientGender === 'female' ? 'text-[#d4af37]' : 'text-white/30'} /> <span className="text-[10px] uppercase tracking-widest">Женщина</span></button><button onClick={() => setClientGender('male')} className={`p-5 rounded-3xl border flex flex-col items-center gap-2 transition-all ${clientGender === 'male' ? 'bg-[#d4af37]/10 border-[#d4af37] text-[#d4af37]' : 'bg-[#16161f] border-white/5 text-white/30'}`}><MarsIcon size={24} className={clientGender === 'male' ? 'text-[#d4af37]' : 'text-white/30'} /> <span className="text-[10px] uppercase tracking-widest">Мужчина</span></button></div><button onClick={handleCompleteRegistration} className="w-full bg-[#d4af37] text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95 shadow-xl">Завершить</button></div>) : (<div className="text-center space-y-6 px-4"><button onClick={() => setView('login-choice')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button><div className="bg-[#16161f] rounded-3xl p-6 border border-[#d4af37]/20 shadow-2xl text-white"><h2 className="text-sm font-light uppercase tracking-widest text-white/60 mb-4 flex items-center justify-center gap-2"><KeyRound size={16}/> МАСТЕР-КЛЮЧ</h2><input type="password" placeholder="****" value={masterPass} onChange={(e) => setMasterPass(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleMasterLogin()} className="bg-transparent border-none outline-none w-full text-center text-4xl font-light tracking-[0.5em] text-[#d4af37]" /></div><button onClick={handleMasterLogin} className="w-full bg-white text-black font-bold py-5 rounded-[28px] active:scale-95 shadow-xl uppercase">Активировать</button></div>)}
+                  
+                  {view === 'login-choice' ? (
+                    <>
+                      <button onClick={() => { handleInteraction(); setView('login-phone'); }} className="w-full bg-[#d4af37] text-black font-bold py-6 rounded-[30px] shadow-xl uppercase text-xs active:scale-95 italic tracking-widest">Я Клиент</button>
+                      <button onClick={() => { handleInteraction(); setView('login-master'); }} className="w-full bg-white/[0.03] text-white/30 py-5 rounded-[30px] border border-white/5 uppercase text-[9px] tracking-[0.3em]">Мастер-вход</button>
+                    </>
+                  ) : view === 'login-phone' ? (
+                    <div className="text-left space-y-6 px-4">
+                      <button onClick={() => setView('login-choice')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button>
+                      <div className="bg-[#16161f] rounded-3xl p-6 border border-white/5 flex items-center shadow-2xl focus-within:border-[#d4af37]/30 transition-all text-white">
+                        <Phone size={18} className="text-[#d4af37] mr-4 opacity-40" />
+                        <input type="tel" placeholder="+7 999 000 00 00" value={phone} onChange={(e) => setPhone(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleVerifyPhone()} className="bg-transparent border-none outline-none w-full text-lg font-light text-white" />
+                      </div>
+                      <button onClick={handleVerifyPhone} className="w-full bg-[#d4af37] text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95 shadow-lg">Далее</button>
+                    </div>
+                  ) : view === 'login-client-pin' ? (
+                    <div className="text-left space-y-6 px-4">
+                      <button onClick={() => setView('login-phone')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button>
+                      <div className="bg-[#16161f] rounded-3xl p-6 border border-[#d4af37]/20 flex items-center shadow-2xl text-white">
+                        <KeyRound size={18} className="text-[#d4af37] mr-4 opacity-40" />
+                        <input type="password" placeholder="ПИН-КОД" value={clientPin} onChange={(e) => setClientPin(e.target.value.replace(/\D/g, '').slice(0, 4))} onKeyPress={(e) => e.key === 'Enter' && handleVerifyPin()} className="bg-transparent border-none outline-none w-full text-2xl font-light text-[#d4af37] tracking-[0.5em] text-center" />
+                      </div>
+                      <button onClick={handleVerifyPin} className="w-full bg-white text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95">Войти</button>
+                    </div>
+                  ) : view === 'login-client-details' ? (
+                    <div className="text-center space-y-6 px-4">
+                      <h2 className="text-lg font-light uppercase tracking-widest text-[#d4af37]">Создание профиля</h2>
+                      <div className="bg-[#16161f] rounded-3xl p-6 border border-white/5 flex items-center shadow-2xl text-white">
+                        <input type="text" placeholder="Ваше Имя" value={clientName} onChange={(e) => setClientName(e.target.value)} className="bg-transparent border-none outline-none w-full text-lg font-light tracking-widest text-white text-center" />
+                      </div>
+                      <div className="bg-[#16161f] rounded-3xl p-6 border border-[#d4af37]/20 flex items-center shadow-2xl text-white">
+                        <KeyRound size={18} className="text-[#d4af37] mr-4 opacity-40" />
+                        <input type="password" placeholder="ПРИДУМАЙТЕ ПИН (4 цифры)" value={clientPin} onChange={(e) => setClientPin(e.target.value.replace(/\D/g, '').slice(0, 4))} className="bg-transparent border-none outline-none w-full text-sm font-light text-[#d4af37] tracking-[0.2em] text-center" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button onClick={() => setClientGender('female')} className={`p-5 rounded-3xl border flex flex-col items-center gap-2 transition-all ${clientGender === 'female' ? 'bg-[#d4af37]/10 border-[#d4af37] text-[#d4af37]' : 'bg-[#16161f] border-white/5 text-white/30'}`}><VenusIcon size={24} className={clientGender === 'female' ? 'text-[#d4af37]' : 'text-white/30'} /> <span className="text-[10px] uppercase tracking-widest">Женщина</span></button>
+                        <button onClick={() => setClientGender('male')} className={`p-5 rounded-3xl border flex flex-col items-center gap-2 transition-all ${clientGender === 'male' ? 'bg-[#d4af37]/10 border-[#d4af37] text-[#d4af37]' : 'bg-[#16161f] border-white/5 text-white/30'}`}><MarsIcon size={24} className={clientGender === 'male' ? 'text-[#d4af37]' : 'text-white/30'} /> <span className="text-[10px] uppercase tracking-widest">Мужчина</span></button>
+                      </div>
+                      <button onClick={handleCompleteRegistration} className="w-full bg-[#d4af37] text-black font-bold py-5 rounded-[28px] uppercase text-xs active:scale-95 shadow-xl">Завершить</button>
+                    </div>
+                  ) : (
+                    <div className="text-center space-y-6 px-4">
+                      <button onClick={() => setView('login-choice')} className="text-[#d4af37] text-[10px] uppercase tracking-widest flex items-center gap-2 mb-4"><ChevronLeft size={14} /> Назад</button>
+                      <div className="bg-[#16161f] rounded-3xl p-6 border border-[#d4af37]/20 shadow-2xl text-white">
+                        <h2 className="text-sm font-light uppercase tracking-widest text-white/60 mb-4 flex items-center justify-center gap-2"><KeyRound size={16}/> МАСТЕР-КЛЮЧ</h2>
+                        <input type="password" placeholder="****" value={masterPass} onChange={(e) => setMasterPass(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleMasterLogin()} className="bg-transparent border-none outline-none w-full text-center text-4xl font-light tracking-[0.5em] text-[#d4af37]" />
+                      </div>
+                      <button onClick={handleMasterLogin} className="w-full bg-white text-black font-bold py-5 rounded-[28px] active:scale-95 shadow-xl uppercase">Активировать</button>
+                    </div>
+                  )}
                 </div>
                 <div className="w-full flex justify-center pb-4 mt-12"><button onClick={() => setShowSupportModal(true)} className="text-[9px] text-white/30 hover:text-white/60 uppercase tracking-widest font-mono flex items-center gap-1.5 transition-colors"><Bug size={10} /> Сообщить о проблеме</button></div>
               </motion.div>
