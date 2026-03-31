@@ -28,14 +28,13 @@ import {
 } from 'lucide-react';
 
 /**
- * TAROT SOUL APP v24.0 (Ultimate Stability)
- * - Железобетонная инициализация Supabase через React State.
- * - Нет ошибок сборки (Could not resolve / Dynamic require).
- * - Нет ошибок потери переменной (supabase is not defined).
+ * TAROT SOUL APP v24.1 (Ultimate Stability Fix)
+ * - ИСПРАВЛЕНИЕ: Удалены битые ссылки, из-за которых зависала загрузка (кот).
+ * - ИСПРАВЛЕНИЕ: Полностью удален `import createClient`, ломавший сборку в Vercel.
  * - Вход через надежный ПИН-код.
  */
 
-const SUPABASE_URL = "[https://hvqdnasfjtbipuuvblbw.supabase.co](https://hvqdnasfjtbipuuvblbw.supabase.co)"; 
+const SUPABASE_URL = "https://hvqdnasfjtbipuuvblbw.supabase.co"; 
 const SUPABASE_ANON_KEY = "sb_publishable_s080zBFK5LwnBIavU_44yw_QElRnhCk"; 
 const MASTER_SECRET_CODE = "2026";
 
@@ -136,7 +135,7 @@ const GoldenCatFamiliar = () => (
     `}} />
     <motion.div animate={{ scale: [1, 1.15, 1], opacity: [0.1, 0.2, 0.1] }} transition={{ duration: 10, repeat: Infinity }} className="absolute w-36 h-36 sm:w-56 sm:h-56 bg-[#d4af37] rounded-full blur-[70px]" />
     <div className="relative z-10 scale-100 sm:scale-110">
-      <svg width="160" height="160" viewBox="0 0 100 100" fill="none" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)">
+      <svg width="160" height="160" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M75,65 C90,65 95,45 90,35 C85,25 75,35 80,45" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" className="animate-cat-tail" />
           <path d="M28,40 Q40,0 52,40 Z" fill="#D4AF37" /><path d="M72,40 Q60,0 48,40 Z" fill="#D4AF37" />
           <circle cx="50" cy="58" r="26" fill="#000" stroke="#D4AF37" strokeWidth="1.5" />
@@ -170,7 +169,6 @@ const STICKERS_LIST = [ { id: 'love', label: 'Любовь' }, { id: 'joy', labe
 
 // --- ОСНОВНОЙ КОМПОНЕНТ ---
 export default function App() {
-  const [supabase, setSupabase] = useState(null);
   const [isReady, setIsReady] = useState(false);
   const [user, setUser] = useState(null); 
   const [view, setView] = useState('loading'); 
@@ -213,8 +211,9 @@ export default function App() {
   useEffect(() => {
     const initSupabase = () => {
       if (window.supabase) {
-        const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        setSupabase(client);
+        if (!supabase) {
+          supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
         setIsReady(true);
       }
     };
@@ -223,9 +222,13 @@ export default function App() {
       initSupabase();
     } else {
       const script = document.createElement('script');
-      script.src = '[https://unpkg.com/@supabase/supabase-js@2.39.7/dist/umd/supabase.js](https://unpkg.com/@supabase/supabase-js@2.39.7/dist/umd/supabase.js)';
+      script.src = 'https://unpkg.com/@supabase/supabase-js@2.39.7/dist/umd/supabase.js';
       script.async = true;
       script.onload = initSupabase;
+      script.onerror = () => {
+        console.error("Ошибка загрузки скрипта Supabase");
+        setIsReady(true); 
+      };
       document.head.appendChild(script);
     }
   }, []);
@@ -319,7 +322,7 @@ export default function App() {
     fetchBookings();
     const channel = supabase.channel('bookings_changes').on('postgres_changes', { event: '*', table: 'bookings' }, () => { fetchBookings(); }).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [user?.role, user?.phone, isReady, supabase]);
+  }, [user?.role, user?.phone, isReady]);
 
   const processBookings = (sorted) => {
     setAllBookings(sorted);
@@ -391,7 +394,7 @@ export default function App() {
     }).subscribe();
     
     return () => { supabase.removeChannel(channel); };
-  }, [activeChatBooking?.id, user?.role, isReady, supabase]);
+  }, [activeChatBooking?.id, user?.role, isReady]);
 
   // --- АРХИВНЫЕ СООБЩЕНИЯ ---
   useEffect(() => {
@@ -409,7 +412,7 @@ export default function App() {
       } catch (err) {}
     };
     fetchArchive();
-  }, [selectedArchiveBooking?.id, view, isReady, supabase]);
+  }, [selectedArchiveBooking?.id, view, isReady]);
 
   // --- МЕТОДЫ АВТОРИЗАЦИИ ---
   const handleLogout = async () => { 
@@ -431,6 +434,7 @@ export default function App() {
     }
   };
 
+  // 1. ПРОВЕРКА НОМЕРА
   const handleVerifyPhone = async () => {
     handleInteraction();
     if (!isReady || !supabase) {
@@ -467,11 +471,11 @@ export default function App() {
         setView('login-client-details');
       }
     } catch (err) {
-      console.warn("Phone verify warning:", err);
       setView('login-client-details');
     }
   };
 
+  // 2. ПРОВЕРКА ПИН-КОДА
   const handleVerifyPin = async () => {
     handleInteraction();
     if (!isReady || !supabase) return;
@@ -510,6 +514,7 @@ export default function App() {
     }
   };
 
+  // 3. СОЗДАНИЕ ПРОФИЛЯ
   const handleCompleteRegistration = async () => {
     handleInteraction();
     if (!isReady || !supabase) return;
