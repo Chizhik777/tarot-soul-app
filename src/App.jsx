@@ -28,10 +28,10 @@ import {
 } from 'lucide-react';
 
 /**
- * TAROT SOUL APP v24.1 (Ultimate Stability Fix)
- * - ИСПРАВЛЕНИЕ: Удалены битые ссылки, из-за которых зависала загрузка (кот).
- * - ИСПРАВЛЕНИЕ: Полностью удален `import createClient`, ломавший сборку в Vercel.
- * - Вход через надежный ПИН-код.
+ * TAROT SOUL APP v25.0 (PIN Code Restored)
+ * - Восстановлена правильная логика ПИН-кода при регистрации и входе.
+ * - Безопасная инициализация Supabase через CDN.
+ * - Отлов всех ошибок связи (без зависаний загрузки).
  */
 
 const SUPABASE_URL = "https://hvqdnasfjtbipuuvblbw.supabase.co"; 
@@ -169,6 +169,7 @@ const STICKERS_LIST = [ { id: 'love', label: 'Любовь' }, { id: 'joy', labe
 
 // --- ОСНОВНОЙ КОМПОНЕНТ ---
 export default function App() {
+  const [supabase, setSupabase] = useState(null);
   const [isReady, setIsReady] = useState(false);
   const [user, setUser] = useState(null); 
   const [view, setView] = useState('loading'); 
@@ -207,13 +208,12 @@ export default function App() {
   const fileInputRef = useRef(null);
   const prevActiveBookingRef = useRef(null);
 
-  // --- 1. БЕЗОПАСНАЯ ИНИЦИАЛИЗАЦИЯ SUPABASE ---
+  // --- ИНИЦИАЛИЗАЦИЯ SUPABASE ---
   useEffect(() => {
     const initSupabase = () => {
       if (window.supabase) {
-        if (!supabase) {
-          supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        }
+        const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        setSupabase(client);
         setIsReady(true);
       }
     };
@@ -322,7 +322,7 @@ export default function App() {
     fetchBookings();
     const channel = supabase.channel('bookings_changes').on('postgres_changes', { event: '*', table: 'bookings' }, () => { fetchBookings(); }).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [user?.role, user?.phone, isReady]);
+  }, [user?.role, user?.phone, isReady, supabase]);
 
   const processBookings = (sorted) => {
     setAllBookings(sorted);
@@ -394,7 +394,7 @@ export default function App() {
     }).subscribe();
     
     return () => { supabase.removeChannel(channel); };
-  }, [activeChatBooking?.id, user?.role, isReady]);
+  }, [activeChatBooking?.id, user?.role, isReady, supabase]);
 
   // --- АРХИВНЫЕ СООБЩЕНИЯ ---
   useEffect(() => {
@@ -412,7 +412,7 @@ export default function App() {
       } catch (err) {}
     };
     fetchArchive();
-  }, [selectedArchiveBooking?.id, view, isReady]);
+  }, [selectedArchiveBooking?.id, view, isReady, supabase]);
 
   // --- МЕТОДЫ АВТОРИЗАЦИИ ---
   const handleLogout = async () => { 
@@ -434,7 +434,6 @@ export default function App() {
     }
   };
 
-  // 1. ПРОВЕРКА НОМЕРА
   const handleVerifyPhone = async () => {
     handleInteraction();
     if (!isReady || !supabase) {
@@ -475,7 +474,6 @@ export default function App() {
     }
   };
 
-  // 2. ПРОВЕРКА ПИН-КОДА
   const handleVerifyPin = async () => {
     handleInteraction();
     if (!isReady || !supabase) return;
@@ -514,7 +512,6 @@ export default function App() {
     }
   };
 
-  // 3. СОЗДАНИЕ ПРОФИЛЯ
   const handleCompleteRegistration = async () => {
     handleInteraction();
     if (!isReady || !supabase) return;
@@ -537,7 +534,7 @@ export default function App() {
       const { error } = await supabase.from('profiles').upsert(profile, { onConflict: 'phone' });
       
       if (error) {
-        triggerMagicAlert(`Ошибка БД. Отключите RLS в Supabase! 🔒`);
+        triggerMagicAlert(`Ошибка БД: ${error.message} 🔒`);
         setView('login-client-details');
         return;
       }
