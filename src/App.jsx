@@ -407,9 +407,15 @@ export default function App() {
     } else triggerMagicAlert("Доступ закрыт 🔒");
   };
 
-  // 1. ПРОВЕРКА НОМЕРА И СЕССИИ
+  // 1. ПРОВЕРКА НОМЕРА И СЕССИИ (С ЗАЩИТОЙ ОТ ЗАВИСАНИЯ)
   const handleVerifyPhone = async () => {
     handleInteraction();
+    
+    if (!supabase) {
+      triggerMagicAlert("Устанавливаем связь с космосом... Нажмите еще раз ✨");
+      return;
+    }
+
     if (!phone.trim()) {
       triggerMagicAlert("Введите номер телефона");
       return;
@@ -423,24 +429,29 @@ export default function App() {
     }
 
     setPhone(formattedPhone);
-    setView('loading');
+    setView('loading'); // Включаем кота
 
-    // Обеспечиваем анонимную сессию для безопасных запросов к БД
-    if (supabase) {
+    try {
+      // Обеспечиваем анонимную сессию для безопасных запросов к БД
       const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session) {
-        await supabase.auth.signInAnonymously();
+      if (!sessionData?.session && typeof supabase.auth.signInAnonymously === 'function') {
+        const { error: anonError } = await supabase.auth.signInAnonymously();
+        if (anonError) console.warn("Anon session skip:", anonError);
       }
-    }
 
-    const safePhone = formattedPhone.replace(/[^0-9+]/g, '');
-    const { data, error } = await supabase.from('profiles').select('*').eq('phone', safePhone).single();
-    
-    if (data && !error) {
-      // Профиль найден -> запрашиваем ПИН-код
-      setView('login-client-pin');
-    } else {
-      // Профиль не найден -> регистрация нового
+      const safePhone = formattedPhone.replace(/[^0-9+]/g, '');
+      const { data, error } = await supabase.from('profiles').select('*').eq('phone', safePhone).single();
+      
+      if (data && !error) {
+        // Профиль найден -> запрашиваем ПИН-код
+        setView('login-client-pin');
+      } else {
+        // Профиль не найден -> регистрация нового
+        setView('login-client-details');
+      }
+    } catch (error) {
+      console.error("Ошибка при проверке профиля:", error);
+      // Fallback на регистрацию в случае непредвиденного сбоя связи, чтобы кот не зависал
       setView('login-client-details');
     }
   };
@@ -448,6 +459,9 @@ export default function App() {
   // 2. ПРОВЕРКА ПИН-КОДА И ВХОД
   const handleVerifyPin = async () => {
     handleInteraction();
+
+    if (!supabase) return;
+
     if (!clientPin.trim()) {
       triggerMagicAlert("Введите ПИН-код");
       return;
@@ -455,31 +469,39 @@ export default function App() {
     
     setView('loading');
 
-    const safePhone = phone.replace(/[^0-9+]/g, '');
-    const { data, error } = await supabase.from('profiles').select('*').eq('phone', safePhone).single();
-    
-    if (data && !error) {
-      if (data.pin === clientPin) {
-        localStorage.setItem('tarot_role', 'client');
-        localStorage.setItem('tarot_phone', safePhone);
-        localStorage.setItem('tarot_name', data.name);
-        localStorage.setItem('tarot_gender', data.gender);
-        setUser({ role: 'client', phone: safePhone, ...data });
-        setView('home');
+    try {
+      const safePhone = phone.replace(/[^0-9+]/g, '');
+      const { data, error } = await supabase.from('profiles').select('*').eq('phone', safePhone).single();
+      
+      if (data && !error) {
+        if (data.pin === clientPin) {
+          localStorage.setItem('tarot_role', 'client');
+          localStorage.setItem('tarot_phone', safePhone);
+          localStorage.setItem('tarot_name', data.name);
+          localStorage.setItem('tarot_gender', data.gender);
+          setUser({ role: 'client', phone: safePhone, ...data });
+          setView('home');
+        } else {
+          triggerMagicAlert(`Неверный ПИН-код 🔒`);
+          setView('login-client-pin');
+        }
       } else {
-        triggerMagicAlert(`Неверный ПИН-код 🔒`);
-        setView('login-client-pin');
+        triggerMagicAlert(`Профиль не найден`);
+        setView('login-phone');
       }
-    } else {
-      triggerMagicAlert(`Профиль не найден`);
-      setView('login-phone');
+    } catch (error) {
+      console.error("Ошибка проверки ПИН-кода:", error);
+      triggerMagicAlert(`Произошла ошибка связи 🔒`);
+      setView('login-client-pin');
     }
   };
 
   // 3. СОЗДАНИЕ ПРОФИЛЯ С ПИН-КОДОМ
   const handleCompleteRegistration = async () => {
     handleInteraction();
-    if (!clientName.trim() || !supabase) {
+    if (!supabase) return;
+
+    if (!clientName.trim()) {
        triggerMagicAlert("Введите имя ✨");
        return;
     }
@@ -489,22 +511,29 @@ export default function App() {
     }
     
     setView('loading');
-    const safePhone = phone.replace(/[^0-9+]/g, '');
-    const profile = { phone: safePhone, name: clientName, gender: clientGender, pin: clientPin };
     
-    const { error } = await supabase.from('profiles').upsert(profile);
-    if (error) {
-      triggerMagicAlert(`Ошибка регистрации: ${error.message}`);
+    try {
+      const safePhone = phone.replace(/[^0-9+]/g, '');
+      const profile = { phone: safePhone, name: clientName, gender: clientGender, pin: clientPin };
+      
+      const { error } = await supabase.from('profiles').upsert(profile);
+      if (error) {
+        triggerMagicAlert(`Ошибка регистрации: ${error.message}`);
+        setView('login-client-details');
+        return;
+      }
+      
+      localStorage.setItem('tarot_role', 'client');
+      localStorage.setItem('tarot_phone', safePhone);
+      localStorage.setItem('tarot_name', clientName);
+      localStorage.setItem('tarot_gender', clientGender);
+      setUser({ role: 'client', ...profile });
+      setView('home');
+    } catch (error) {
+      console.error("Ошибка сохранения профиля:", error);
+      triggerMagicAlert(`Сбой при сохранении 🔒`);
       setView('login-client-details');
-      return;
     }
-    
-    localStorage.setItem('tarot_role', 'client');
-    localStorage.setItem('tarot_phone', safePhone);
-    localStorage.setItem('tarot_name', clientName);
-    localStorage.setItem('tarot_gender', clientGender);
-    setUser({ role: 'client', ...profile });
-    setView('home');
   };
 
   const submitBooking = async () => {
